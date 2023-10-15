@@ -60,8 +60,10 @@ features = ["docs"]
 build = "sphinx-build -M html docs/source docs/build"
 
 [tool.pytest.ini_options]
+xfail_strict = true
 addopts = [
     '--import-mode=importlib',
+    '--strict-markers',
     '-Werror',
 ]
 
