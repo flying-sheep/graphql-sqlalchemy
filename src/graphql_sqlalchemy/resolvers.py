@@ -73,7 +73,7 @@ def get_filter_operation(model: type[DeclarativeBase], where: dict[str, Any]) ->
 
         model_property = getattr(model, name)
         partial_bool = partial(get_bool_operation, model_property)
-        return and_(*(starmap(partial_bool, exprs.items())))
+        return and_(*starmap(partial_bool, exprs.items()))
 
     return true()
 
@@ -82,7 +82,7 @@ def filter_query(model: type[DeclarativeBase], query: Query, where: dict[str, An
     if not where:
         return query
 
-    query_filter = getattr(query, "filter")
+    query_filter = query.filter
     for name, exprs in where.items():
         query = query_filter(get_filter_operation(model, {name: exprs}))
 
@@ -97,8 +97,7 @@ def order_query(model: type[DeclarativeBase], query: Query, order: list[dict[str
         for name, direction in expr.items():
             model_property = getattr(model, name)
             model_order = getattr(model_property, direction)
-            query_order = getattr(query, "order_by")
-            query = query_order(model_order())
+            query = query.order_by(model_order())
 
     return query
 
@@ -119,10 +118,10 @@ def make_object_resolver(model: type[DeclarativeBase]) -> Callable[..., list[Dec
         query = order_query(model, query, order)
 
         if limit:
-            query = getattr(query, "limit")(limit)
+            query = query.limit(limit)
 
         if offset:
-            query = getattr(query, "offset")(offset)
+            query = query.offset(offset)
 
         return query.all()
 
