@@ -3,10 +3,13 @@ name = "graphql-sqlalchemy"
 version = "0.6.1"
 description = "Generate GraphQL Schemas from your SQLAlchemy models"
 license = "MIT"
-authors = [ { name = "Guido Rainuzzo", email = "hi@guido.nyc" }]
+authors = [
+    { name = "Guido Rainuzzo", email = "hi@guido.nyc" },
+    { name = "Philipp A.", email = "flying-sheep@web.de" },
+]
 readme = "README.md"
-urls.Homepage = "https://github.com/gzzo/graphql-sqlalchemy"
-urls.Source = "https://github.com/gzzo/graphql-sqlalchemy"
+urls.Homepage = "https://github.com/flying-sheep/graphql-sqlalchemy"
+urls.Source = "https://github.com/flying-sheep/graphql-sqlalchemy"
 keywords = ["graphql", "sqlalchemy"]
 classifiers = [
     "Intended Audience :: Developers",

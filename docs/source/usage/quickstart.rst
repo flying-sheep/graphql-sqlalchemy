@@ -43,4 +43,4 @@ Now we can start writing queries, for example: ::
 
 For more information on querying, see the :doc:`query reference </reference/query>`.
 
-For an example application see: `graphql-sqlalchemy-example <https://github.com/gzzo/graphql-sqlalchemy-example>`_.
+For an example application see: `graphql-sqlalchemy-example <https://github.com/flying-sheep/graphql-sqlalchemy-example>`_.
