@@ -71,6 +71,9 @@ def example_session(db_engine: Engine, db_session: Session) -> Session:
 def query_example(example_session: Session, gql_schema: GraphQLSchema) -> Callable[[str], Any]:
     def query(source: str) -> Any:
         result = graphql_sync(gql_schema, source, context_value={"session": example_session})
+        if example_session._transaction:
+            # TODO: make unnecessary
+            example_session._transaction.close()
         if result.errors:
             raise result.errors[0] if len(result.errors) == 1 else ExceptionGroup("Invalid Query", result.errors)
         return result.data
@@ -108,7 +111,9 @@ def test_simple_filter(query_example: Callable[[str], Any]) -> None:
         pytest.param("", id="artcl_all"),
     ],
 )
-def test_nested_filter(query_example: Callable[[str], Any], filter_author: str, filter_article: str) -> None:
+def test_nested_filter(
+    db_session: Session, query_example: Callable[[str], Any], filter_author: str, filter_article: str
+) -> None:
     data = query_example(
         f"""
         query {{
@@ -132,10 +137,11 @@ def test_nested_filter(query_example: Callable[[str], Any], filter_author: str, 
 
     articles = [article for author in data["author"] for article in author["articles"]]
     article_titles = {article["title"] for article in articles}
+    with db_session.begin():
+        all_article_titles = {row[0] for row in db_session.query(Article.title).all()}
     if filter_article:
         assert article_titles == {"Felicitas good", "Felicitas better", "Björk good"}
     elif filter_author:
-        assert "Lundth" not in article_titles
-        assert len(article_titles) == 4
+        assert article_titles == all_article_titles - {"Lundth bad"}
     else:
-        assert len(article_titles) == 5
+        assert article_titles == all_article_titles
