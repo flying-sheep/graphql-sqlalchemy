@@ -103,11 +103,7 @@ def test_simple_filter(query_example: Callable[[str], Any]) -> None:
 @pytest.mark.parametrize(
     "filter_article",
     [
-        pytest.param(
-            "(where: { rating: { _gte: 4 } })",
-            marks=pytest.mark.xfail(reason="conditions on nested fields not implemented"),
-            id="artcl_filt",
-        ),
+        pytest.param("(where: { rating: { _gte: 4 } })", id="artcl_filt"),
         pytest.param("", id="artcl_all"),
     ],
 )

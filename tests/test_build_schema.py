@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from typing import cast
+
+from graphql import GraphQLInt, GraphQLNonNull, GraphQLObjectType
 from graphql_sqlalchemy import build_schema
 from sqlalchemy import Boolean, Column, Integer, String
 from sqlalchemy.orm import declarative_base
@@ -16,4 +19,9 @@ class User(Base):  # type: ignore
     some_int = Column(Integer, nullable=False)
 
 
-schema = build_schema(Base)
+def test_build_schema() -> None:
+    schema = build_schema(Base)
+    user = cast(GraphQLObjectType | None, schema.get_type("test"))
+    assert user
+    f = user.fields["some_id"]
+    assert f.type == GraphQLNonNull(GraphQLInt)
