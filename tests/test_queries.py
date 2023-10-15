@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Callable
-from typing import Any, Literal
+from typing import Any
 
 import pytest
 from graphql import GraphQLSchema, graphql_sync
@@ -91,26 +91,35 @@ def test_simple_filter(query_example: Callable[[str], Any]) -> None:
 
 
 @pytest.mark.parametrize(
-    "filter",
+    "filter_author",
     [
-        pytest.param("both", marks=pytest.mark.xfail(reason="Both not implemented")),
-        pytest.param("author", marks=pytest.mark.xfail(reason="nested conditions not implemented")),
-        pytest.param("article", marks=pytest.mark.xfail(reason="conditions on nested fields not implemented")),
+        pytest.param(
+            "(where: { articles: { rating: { _gt: 4 } } })",
+            marks=pytest.mark.xfail(reason="nested conditions not implemented"),
+            id="author_filt",
+        ),
+        pytest.param("", id="author_all"),
     ],
 )
-def test_highly_rated(
-    query_example: Callable[[str], Any],
-    filter: Literal["both", "author", "article"],
-) -> None:
-    author_filter = "(where: { articles: { rating: { _gt: 4 } } })" if filter != "article" else ""
-    article_filter = "(where: { rating: { _gt: 4 } })" if filter != "author" else ""
+@pytest.mark.parametrize(
+    "filter_article",
+    [
+        pytest.param(
+            "(where: { rating: { _gt: 4 } })",
+            marks=pytest.mark.xfail(reason="conditions on nested fields not implemented"),
+            id="artcl_filt",
+        ),
+        pytest.param("", id="artcl_all"),
+    ],
+)
+def test_nested_filter(query_example: Callable[[str], Any], filter_author: str, filter_article: str) -> None:
     data = query_example(
         f"""
         query {{
-            author{author_filter} {{
+            author{filter_author} {{
                 id
                 name
-                articles{article_filter} {{
+                articles{filter_author} {{
                     id
                     title
                     rating
@@ -120,14 +129,14 @@ def test_highly_rated(
         """
     )
     author_names = {author["name"] for author in data["author"]}
-    if author_filter:
+    if filter_author:
         assert author_names == {"Felicitas", "Björk"}
     else:
         assert len(author_names) == 3
 
-    articles = {article for author in data["author"] for article in author["articles"]}
+    articles = [article for author in data["author"] for article in author["articles"]]
     article_titles = {article["title"] for article in articles}
-    if article_filter:
+    if filter_article:
         assert article_titles == {"Felicitas good", "Felicitas better", "Björk good"}
     else:
         assert len(article_titles) == 5
