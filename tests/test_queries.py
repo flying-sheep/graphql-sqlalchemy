@@ -93,7 +93,7 @@ def test_simple_filter(query_example: Callable[[str], Any]) -> None:
 @pytest.mark.parametrize(
     "filter_author",
     [
-        pytest.param("(where: { articles: { rating: { _gt: 4 } } })", id="author_filt"),
+        pytest.param("(where: { articles: { rating: { _gte: 4 } } })", id="author_filt"),
         pytest.param("", id="author_all"),
     ],
 )
@@ -101,7 +101,7 @@ def test_simple_filter(query_example: Callable[[str], Any]) -> None:
     "filter_article",
     [
         pytest.param(
-            "(where: { rating: { _gt: 4 } })",
+            "(where: { rating: { _gte: 4 } })",
             marks=pytest.mark.xfail(reason="conditions on nested fields not implemented"),
             id="artcl_filt",
         ),
@@ -134,5 +134,8 @@ def test_nested_filter(query_example: Callable[[str], Any], filter_author: str, 
     article_titles = {article["title"] for article in articles}
     if filter_article:
         assert article_titles == {"Felicitas good", "Felicitas better", "Björk good"}
+    elif filter_author:
+        assert "Lundth" not in article_titles
+        assert len(article_titles) == 4
     else:
         assert len(article_titles) == 5
