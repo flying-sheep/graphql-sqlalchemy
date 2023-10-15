@@ -45,6 +45,9 @@ graphql = "pygments_graphql:GraphqlLexer"
 
 [tool.hatch.envs.default]
 python = "3.11"
+dependencies = [
+    "pygments", # pytest syntax highlighting
+]
 
 [[tool.hatch.envs.test.matrix]]
 python = ["3.9", "3.10", "3.11"]
