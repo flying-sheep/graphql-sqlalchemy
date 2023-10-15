@@ -4,9 +4,8 @@ from functools import partial
 from itertools import starmap
 from typing import Any, Callable, TypedDict
 
-from sqlalchemy import Column, and_, not_, or_, true
-from sqlalchemy.orm import DeclarativeBase, Query, Session
-from sqlalchemy.sql import ClauseElement
+from sqlalchemy import ColumnExpressionArgument, and_, not_, or_, true
+from sqlalchemy.orm import DeclarativeBase, InstrumentedAttribute, Query, Session
 
 
 class InsDel(TypedDict):
@@ -21,7 +20,9 @@ def make_field_resolver(field: str) -> Callable[..., Any]:
     return resolver
 
 
-def get_bool_operation(model_property: Column, operator: str, value: Any) -> bool | ClauseElement:
+def get_bool_operation(
+    model_property: InstrumentedAttribute, operator: str, value: Any
+) -> bool | ColumnExpressionArgument[bool]:
     if operator == "_eq":
         return model_property == value
 
@@ -58,7 +59,9 @@ def get_bool_operation(model_property: Column, operator: str, value: Any) -> boo
     raise Exception("Invalid operator")
 
 
-def get_filter_operation(model: type[DeclarativeBase], where: dict[str, Any]) -> ClauseElement:
+def get_filter_operation(
+    model: type[DeclarativeBase] | InstrumentedAttribute, where: dict[str, Any]
+) -> ColumnExpressionArgument[bool]:
     partial_filter = partial(get_filter_operation, model)
 
     for name, exprs in where.items():
@@ -71,9 +74,13 @@ def get_filter_operation(model: type[DeclarativeBase], where: dict[str, Any]) ->
         if name == "_and":
             return and_(*map(partial_filter, exprs))
 
-        model_property = getattr(model, name)
-        partial_bool = partial(get_bool_operation, model_property)
-        return and_(*starmap(partial_bool, exprs.items()))
+        model_property: InstrumentedAttribute = getattr(model, name)
+
+        if model_property.impl.accepts_scalar_loader:
+            partial_bool = partial(get_bool_operation, model_property)
+            return and_(*starmap(partial_bool, exprs.items()))
+
+        return get_filter_operation(model_property, exprs)
 
     return true()
 
