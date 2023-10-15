@@ -44,9 +44,7 @@ graphql = "pygments_graphql:GraphqlLexer"
 
 
 [tool.hatch.envs.default]
-dependencies = [
-    "codecov",
-]
+python = "3.11"
 
 [[tool.hatch.envs.test.matrix]]
 python = ["3.9", "3.10", "3.11"]
@@ -54,9 +52,9 @@ python = ["3.9", "3.10", "3.11"]
 features = ["test"]
 [tool.hatch.envs.test.scripts]
 run = "pytest -v {args}"
+cov = "pytest -v --cov-report=term-missing --cov=graphql_sqlalchemy {args}"
 
 [tool.hatch.envs.docs]
-python = "3.11"
 features = ["docs"]
 [tool.hatch.envs.docs.scripts]
 build = "sphinx-build -M html docs/source docs/build"
