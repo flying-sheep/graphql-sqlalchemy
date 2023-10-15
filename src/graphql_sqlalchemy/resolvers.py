@@ -5,7 +5,7 @@ from itertools import starmap
 from typing import Any, Callable, TypedDict
 
 from sqlalchemy import ColumnExpressionArgument, and_, not_, or_, true
-from sqlalchemy.orm import DeclarativeBase, InstrumentedAttribute, Query, Session
+from sqlalchemy.orm import DeclarativeBase, InstrumentedAttribute, Query, Relationship, Session, interfaces
 
 
 class InsDel(TypedDict):
@@ -76,10 +76,16 @@ def get_filter_operation(
 
         model_property: InstrumentedAttribute = getattr(model, name)
 
+        # fields
         if model_property.impl.accepts_scalar_loader:
             partial_bool = partial(get_bool_operation, model_property)
             return and_(*starmap(partial_bool, exprs.items()))
 
+        # relationships
+        assert isinstance(model_property.prop, Relationship)
+        if model_property.prop.direction in (interfaces.ONETOMANY, interfaces.MANYTOMANY):
+            elem_filter = get_filter_operation(model_property.prop.entity.class_, exprs)
+            return model_property.any(elem_filter)
         return get_filter_operation(model_property, exprs)
 
     return true()
