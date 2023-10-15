@@ -7,7 +7,7 @@ GraphQL + SQLAlchemy <3
    :target: https://badge.fury.io/py/graphql-sqlalchemy
 .. image:: https://github.com/flying-sheep/graphql-sqlalchemy/actions/workflows/run_tests.yml/badge.svg
    :target: https://github.com/flying-sheep/graphql-sqlalchemy/actions/workflows/run_tests.yml
-.. image:: https://codecov.io/gh/flying-sheep/graphql-sqlalchemy/branch/main/graph/badge.svg
+.. image:: https://codecov.io/gh/flying-sheep/graphql-sqlalchemy/graph/badge.svg
    :target: https://codecov.io/gh/flying-sheep/graphql-sqlalchemy
 .. image:: https://img.shields.io/badge/code%20style-black-000000.svg
    :target: https://github.com/ambv/black

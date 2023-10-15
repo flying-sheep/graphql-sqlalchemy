@@ -2,7 +2,7 @@
 
 [![PyPI version](https://badge.fury.io/py/graphql-sqlalchemy.svg)](https://badge.fury.io/py/graphql-sqlalchemy)
 [![Unit Tests](https://github.com/flying-sheep/graphql-sqlalchemy/actions/workflows/run_tests.yml/badge.svg)](https://github.com/flying-sheep/graphql-sqlalchemy/actions/workflows/run_tests.yml)
-[![codecov](https://codecov.io/gh/flying-sheep/graphql-sqlalchemy/branch/main/graph/badge.svg)](https://codecov.io/gh/flying-sheep/graphql-sqlalchemy)
+[![codecov](https://codecov.io/gh/flying-sheep/graphql-sqlalchemy/graph/badge.svg)](https://codecov.io/gh/flying-sheep/graphql-sqlalchemy)
 [![Code Style](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black)
 
 Generate GraphQL Schemas from your SQLAlchemy models
