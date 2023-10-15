@@ -24,4 +24,5 @@ def test_build_schema() -> None:
     user = cast(GraphQLObjectType | None, schema.get_type("test"))
     assert user
     f = user.fields["some_id"]
-    assert f.type == GraphQLNonNull(GraphQLInt)
+    assert isinstance(f.type, GraphQLNonNull)
+    assert f.type.of_type is GraphQLInt
