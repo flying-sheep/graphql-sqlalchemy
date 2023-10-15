@@ -84,6 +84,12 @@ def test_all(query_example: Callable[[str], Any]) -> None:
     assert author_names == {"Felicitas", "Björk", "Lundth"}
 
 
+def test_simple_filter(query_example: Callable[[str], Any]) -> None:
+    data = query_example("query { article(where: { rating: { _gte: 4 } }) { title } }")
+    article_titles = {article["title"] for article in data["article"]}
+    assert article_titles == {"Felicitas good", "Felicitas better", "Björk good"}
+
+
 @pytest.mark.parametrize(
     "filter",
     [
