@@ -1,11 +1,10 @@
-from typing import Union, Optional
+from __future__ import annotations
 
 from graphql import GraphQLList, GraphQLScalarType
 from sqlalchemy import Column
-from sqlalchemy.ext.declarative import DeclarativeMeta
+from sqlalchemy.orm import DeclarativeBase
 
 from .helpers import get_table
-
 
 FIELD_NAMES = {
     "by_pk": "%s_by_pk",
@@ -31,14 +30,14 @@ FIELD_NAMES = {
 }
 
 
-def get_table_name(model: Union[DeclarativeMeta, GraphQLScalarType, GraphQLList]) -> str:
+def get_table_name(model: type[DeclarativeBase] | GraphQLScalarType | GraphQLList) -> str:
     return get_table(model).name
 
 
 def get_field_name(
-    model: Union[DeclarativeMeta, GraphQLScalarType, GraphQLList],
+    model: type[DeclarativeBase] | (GraphQLScalarType | GraphQLList),
     field_name: str,
-    column: Optional[Union[Column, GraphQLScalarType, GraphQLList]] = None,
+    column: Column | GraphQLScalarType | GraphQLList | None = None,
 ) -> str:
     if field_name == "comparison":
         if isinstance(model, GraphQLList):
