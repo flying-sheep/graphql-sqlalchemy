@@ -54,7 +54,8 @@ def _(model: type[DeclarativeBase], field_name: str, column: Column | None = Non
     return FIELD_NAMES[field_name].format(name)
 
 
-@get_field_name.register
+@get_field_name.register(GraphQLScalarType)
+@get_field_name.register(GraphQLList)
 def _(model: GraphQLScalarType | GraphQLList, field_name: Literal["comparison"]) -> str:
     if isinstance(model, GraphQLList):
         return FIELD_NAMES["arr_comparison"].format(model.of_type.name.lower())
