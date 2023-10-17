@@ -29,7 +29,7 @@ from .types import Inputs, Objects
 
 
 def build_queries(model: type[DeclarativeBase], objects: Objects, queries: GraphQLFieldMap, inputs: Inputs) -> None:
-    object_type = build_object_type(model, objects)
+    object_type = build_object_type(model, objects, inputs)
 
     objects[object_type.name] = object_type
     queries[object_type.name] = GraphQLField(

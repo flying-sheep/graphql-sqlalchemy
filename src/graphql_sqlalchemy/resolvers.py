@@ -1,22 +1,25 @@
 from __future__ import annotations
 
+from collections.abc import Generator
 from functools import partial
 from itertools import starmap
-from typing import Any, Callable
+from typing import Any, Callable, TypedDict
 
-from sqlalchemy import Column, and_, not_, or_, true
-from sqlalchemy.orm import DeclarativeBase, Query, Session
-from sqlalchemy.sql import ClauseElement
+from graphql import GraphQLResolveInfo
+from sqlalchemy import ColumnExpressionArgument, and_, not_, or_, true
+from sqlalchemy.orm import DeclarativeBase, InstrumentedAttribute, Query, Session, interfaces
 
-
-def make_field_resolver(field: str) -> Callable:
-    def resolver(root: type[DeclarativeBase], _info: Any) -> Any:
-        return getattr(root, field)
-
-    return resolver
+from .helpers import get_mapper
 
 
-def get_bool_operation(model_property: Column, operator: str, value: Any) -> bool | ClauseElement:
+class InsDel(TypedDict):
+    affected_rows: int
+    returning: list[DeclarativeBase]
+
+
+def get_bool_operation(
+    model_property: InstrumentedAttribute, operator: str, value: Any
+) -> ColumnExpressionArgument[bool]:
     if operator == "_eq":
         return model_property == value
 
@@ -53,7 +56,9 @@ def get_bool_operation(model_property: Column, operator: str, value: Any) -> boo
     raise Exception("Invalid operator")
 
 
-def get_filter_operation(model: type[DeclarativeBase], where: dict[str, Any]) -> ClauseElement:
+def get_filter_operation(
+    model: type[DeclarativeBase] | InstrumentedAttribute, where: dict[str, Any]
+) -> ColumnExpressionArgument[bool]:
     partial_filter = partial(get_filter_operation, model)
 
     for name, exprs in where.items():
@@ -66,25 +71,40 @@ def get_filter_operation(model: type[DeclarativeBase], where: dict[str, Any]) ->
         if name == "_and":
             return and_(*map(partial_filter, exprs))
 
-        model_property = getattr(model, name)
+        model_property: InstrumentedAttribute = getattr(model, name)
+
+        # relationships
+        if relationship := get_mapper(model).relationships.get(name):
+            if relationship.direction in (interfaces.ONETOMANY, interfaces.MANYTOMANY):
+                elem_filter = get_filter_operation(relationship.entity.class_, exprs)
+                return model_property.any(elem_filter)
+            return get_filter_operation(model_property, exprs)
+
+        # fields
         partial_bool = partial(get_bool_operation, model_property)
-        return and_(*(starmap(partial_bool, exprs.items())))
+        return and_(*starmap(partial_bool, exprs.items()))
 
     return true()
 
 
-def filter_query(model: type[DeclarativeBase], query: Query, where: dict[str, Any] | None = None) -> Query:
+def filter_query(
+    model: type[DeclarativeBase] | InstrumentedAttribute, query: Query, where: dict[str, Any] | None = None
+) -> Query:
     if not where:
         return query
 
-    query_filter = getattr(query, "filter")
+    query_filter = query.filter
     for name, exprs in where.items():
         query = query_filter(get_filter_operation(model, {name: exprs}))
 
     return query
 
 
-def order_query(model: type[DeclarativeBase], query: Query, order: list[dict[str, Any]] | None = None) -> Query:
+def order_query(
+    model: type[DeclarativeBase] | InstrumentedAttribute,
+    query: Query,
+    order: list[dict[str, Any]] | None = None,
+) -> Query:
     if not order:
         return query
 
@@ -92,40 +112,85 @@ def order_query(model: type[DeclarativeBase], query: Query, order: list[dict[str
         for name, direction in expr.items():
             model_property = getattr(model, name)
             model_order = getattr(model_property, direction)
-            query_order = getattr(query, "order_by")
-            query = query_order(model_order())
+            query = query.order_by(model_order())
 
     return query
 
 
-def make_object_resolver(model: type[DeclarativeBase]) -> Callable:
+def resolve_filtered(
+    model: type[DeclarativeBase] | InstrumentedAttribute,
+    query: Query[DeclarativeBase],
+    *,
+    where: dict[str, Any] | None = None,
+    order: list[dict[str, Any]] | None = None,
+    limit: int | None = None,
+    offset: int | None = None,
+) -> list[DeclarativeBase]:
+    query = filter_query(model, query, where)
+    query = order_query(model, query, order)
+
+    if limit:
+        query = query.limit(limit)
+
+    if offset:
+        query = query.offset(offset)
+
+    return query.all()
+
+
+def make_field_resolver(field_name: str) -> Callable[..., Any]:
+    def field_resolver(root: DeclarativeBase, _info: GraphQLResolveInfo) -> Any:
+        return getattr(root, field_name)
+
+    return field_resolver
+
+
+def pk_filter(instance: DeclarativeBase) -> Generator[ColumnExpressionArgument, None, None]:
+    model = instance.__class__
+    for column in model.__table__.primary_key:
+        yield getattr(model, column.name) == getattr(instance, column.name)
+
+
+def make_many_resolver(field_name: str) -> Callable[..., list[DeclarativeBase]]:
     def resolver(
-        _root: None,
-        info: Any,
+        root: DeclarativeBase,
+        info: GraphQLResolveInfo,
+        *,
         where: dict[str, Any] | None = None,
         order: list[dict[str, Any]] | None = None,
         limit: int | None = None,
         offset: int | None = None,
-    ) -> list[type[DeclarativeBase]]:
-        session = info.context["session"]
-        query = session.query(model)
-
-        query = filter_query(model, query, where)
-        query = order_query(model, query, order)
-
-        if limit:
-            query = getattr(query, "limit")(limit)
-
-        if offset:
-            query = getattr(query, "offset")(offset)
-
-        return query.all()
+    ) -> list[DeclarativeBase]:
+        if all(f is None for f in [where, order, limit, offset]):
+            return getattr(root, field_name)
+        session: Session = info.context["session"]
+        relationship: InstrumentedAttribute = getattr(root.__class__, field_name)
+        field_model = relationship.prop.entity.class_
+        query = session.query(field_model).select_from(root.__class__).join(relationship).filter(*pk_filter(root))
+        return resolve_filtered(field_model, query, where=where, order=order, limit=limit, offset=offset)
 
     return resolver
 
 
-def make_pk_resolver(model: type[DeclarativeBase]) -> Callable:
-    def resolver(_root: None, info: Any, **kwargs: dict[str, Any]) -> type[DeclarativeBase]:
+def make_object_resolver(model: type[DeclarativeBase]) -> Callable[..., list[DeclarativeBase]]:
+    def resolver(
+        _root: None,
+        info: GraphQLResolveInfo,
+        *,
+        where: dict[str, Any] | None = None,
+        order: list[dict[str, Any]] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[DeclarativeBase]:
+        session: Session = info.context["session"]
+        query = session.query(model)
+        return resolve_filtered(model, query, where=where, order=order, limit=limit, offset=offset)
+
+    return resolver
+
+
+def make_pk_resolver(model: type[DeclarativeBase]) -> Callable[..., DeclarativeBase | None]:
+    def resolver(_root: None, info: GraphQLResolveInfo, **kwargs: dict[str, Any]) -> DeclarativeBase:
         session = info.context["session"]
         return session.query(model).get(kwargs)
 
@@ -134,7 +199,7 @@ def make_pk_resolver(model: type[DeclarativeBase]) -> Callable:
 
 def session_add_object(
     obj: dict[str, Any], model: type[DeclarativeBase], session: Session, on_conflict: dict[str, Any] | None = None
-) -> type[DeclarativeBase]:
+) -> DeclarativeBase:
     instance = model()
     for key, value in obj.items():
         setattr(instance, key, value)
@@ -154,10 +219,10 @@ def session_commit(session: Session) -> None:
         raise
 
 
-def make_insert_resolver(model: type[DeclarativeBase]) -> Callable:
+def make_insert_resolver(model: type[DeclarativeBase]) -> Callable[..., InsDel]:
     def resolver(
-        _root: None, info: Any, objects: list[dict[str, Any]], on_conflict: dict[str, Any] | None = None
-    ) -> dict[str, int | list[type[DeclarativeBase]]]:
+        _root: None, info: GraphQLResolveInfo, objects: list[dict[str, Any]], on_conflict: dict[str, Any] | None = None
+    ) -> InsDel:
         session = info.context["session"]
         models = []
 
@@ -167,15 +232,15 @@ def make_insert_resolver(model: type[DeclarativeBase]) -> Callable:
                 models.append(instance)
 
         session_commit(session)
-        return {"affected_rows": len(models), "returning": models}
+        return InsDel(affected_rows=len(models), returning=models)
 
     return resolver
 
 
-def make_insert_one_resolver(model: type[DeclarativeBase]) -> Callable:
+def make_insert_one_resolver(model: type[DeclarativeBase]) -> Callable[..., DeclarativeBase]:
     def resolver(
-        _root: None, info: Any, object: dict[str, Any], on_conflict: dict[str, Any] | None = None
-    ) -> type[DeclarativeBase]:
+        _root: None, info: GraphQLResolveInfo, object: dict[str, Any], on_conflict: dict[str, Any] | None = None
+    ) -> DeclarativeBase:
         session = info.context["session"]
 
         instance = session_add_object(object, model, session, on_conflict)
@@ -185,10 +250,8 @@ def make_insert_one_resolver(model: type[DeclarativeBase]) -> Callable:
     return resolver
 
 
-def make_delete_resolver(model: type[DeclarativeBase]) -> Callable:
-    def resolver(
-        _root: None, info: Any, where: dict[str, Any] | None = None
-    ) -> dict[str, int | list[type[DeclarativeBase]]]:
+def make_delete_resolver(model: type[DeclarativeBase]) -> Callable[..., InsDel]:
+    def resolver(_root: None, info: GraphQLResolveInfo, where: dict[str, Any] | None = None) -> InsDel:
         session = info.context["session"]
         query = session.query(model)
         query = filter_query(model, query, where)
@@ -197,16 +260,16 @@ def make_delete_resolver(model: type[DeclarativeBase]) -> Callable:
         affected = query.delete()
         session_commit(session)
 
-        return {"affected_rows": affected, "returning": rows}
+        return InsDel(affected_rows=affected, returning=rows)
 
     return resolver
 
 
-def make_delete_by_pk_resolver(model: type[DeclarativeBase]) -> Callable:
-    def resolver(_root: None, info: Any, **kwargs: dict[str, Any]) -> list[type[DeclarativeBase]] | None:
-        session = info.context["session"]
+def make_delete_by_pk_resolver(model: type[DeclarativeBase]) -> Callable[..., DeclarativeBase | None]:
+    def resolver(_root: None, info: GraphQLResolveInfo, **kwargs: dict[str, Any]) -> DeclarativeBase | None:
+        session: Session = info.context["session"]
 
-        row = session.query(model).get(kwargs)
+        row: DeclarativeBase | None = session.query(model).get(kwargs)
         if row:
             session.delete(row)
             session_commit(session)
@@ -237,36 +300,33 @@ def update_query(
     return affected
 
 
-def make_update_resolver(model: type[DeclarativeBase]) -> Callable:
+def make_update_resolver(model: type[DeclarativeBase]) -> Callable[..., InsDel]:
     def resolver(
         _root: None,
-        info: Any,
+        info: GraphQLResolveInfo,
         where: dict[str, Any],
         _set: dict[str, Any] | None,
         _inc: dict[str, Any] | None,
-    ) -> dict[str, int | list[type[DeclarativeBase]]]:
+    ) -> InsDel:
         session = info.context["session"]
         query = session.query(model)
         query = filter_query(model, query, where)
         affected = update_query(query, model, _set, _inc)
         session_commit(session)
 
-        return {
-            "affected_rows": affected,
-            "returning": query.all(),
-        }
+        return InsDel(affected_rows=affected, returning=query.all())
 
     return resolver
 
 
-def make_update_by_pk_resolver(model: type[DeclarativeBase]) -> Callable:
+def make_update_by_pk_resolver(model: type[DeclarativeBase]) -> Callable[..., DeclarativeBase | None]:
     def resolver(
         _root: None,
-        info: Any,
+        info: GraphQLResolveInfo,
         _set: dict[str, Any] | None,
         _inc: dict[str, Any] | None,
         **pk_columns: dict[str, Any],
-    ) -> type[DeclarativeBase] | None:
+    ) -> DeclarativeBase | None:
         session = info.context["session"]
         query = session.query(model).filter_by(**pk_columns)
 

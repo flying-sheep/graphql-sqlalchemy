@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 from sqlalchemy import Float, Integer, Table
-from sqlalchemy.orm import DeclarativeBase, Mapper, RelationshipProperty
+from sqlalchemy.orm import DeclarativeBase, InstrumentedAttribute, Mapper, RelationshipProperty
 
 
 def get_table(model: type[DeclarativeBase]) -> Table:
+    if not isinstance(model.__table__, Table):
+        raise TypeError(f"{model.__tablename__!r} is not a Table, it’s a {type(model.__table__)}")
     return model.__table__
 
 
-def get_mapper(model: type[DeclarativeBase]) -> Mapper:
+def get_mapper(model: type[DeclarativeBase] | InstrumentedAttribute) -> Mapper:
     return model.__mapper__
 
 
