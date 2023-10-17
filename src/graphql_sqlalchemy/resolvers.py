@@ -86,7 +86,9 @@ def get_filter_operation(
     return true()
 
 
-def filter_query(model: type[DeclarativeBase], query: Query, where: dict[str, Any] | None = None) -> Query:
+def filter_query(
+    model: type[DeclarativeBase] | InstrumentedAttribute, query: Query, where: dict[str, Any] | None = None
+) -> Query:
     if not where:
         return query
 
@@ -97,7 +99,11 @@ def filter_query(model: type[DeclarativeBase], query: Query, where: dict[str, An
     return query
 
 
-def order_query(model: type[DeclarativeBase], query: Query, order: list[dict[str, Any]] | None = None) -> Query:
+def order_query(
+    model: type[DeclarativeBase] | InstrumentedAttribute,
+    query: Query,
+    order: list[dict[str, Any]] | None = None,
+) -> Query:
     if not order:
         return query
 
@@ -110,16 +116,48 @@ def order_query(model: type[DeclarativeBase], query: Query, order: list[dict[str
     return query
 
 
-def make_field_resolver(field: str) -> Callable[..., Any]:
+def resolve_filtered(
+    model: type[DeclarativeBase] | InstrumentedAttribute,
+    session: Session,
+    where: dict[str, Any] | None = None,
+    order: list[dict[str, Any]] | None = None,
+    limit: int | None = None,
+    offset: int | None = None,
+) -> list[DeclarativeBase]:
+    query = session.query(model)
+
+    query = filter_query(model, query, where)
+    query = order_query(model, query, order)
+
+    if limit:
+        query = query.limit(limit)
+
+    if offset:
+        query = query.offset(offset)
+
+    return query.all()
+
+
+def make_field_resolver(field_name: str) -> Callable[..., Any]:
+    def field_resolver(root: type[DeclarativeBase], _info: GraphQLResolveInfo) -> Any:
+        return getattr(root, field_name)
+
+    return field_resolver
+
+
+def make_many_resolver(field_name: str) -> Callable[..., list[DeclarativeBase]]:
     def resolver(
         root: type[DeclarativeBase],
-        _info: GraphQLResolveInfo,
+        info: GraphQLResolveInfo,
+        *,
         where: dict[str, Any] | None = None,
         order: list[dict[str, Any]] | None = None,
         limit: int | None = None,
         offset: int | None = None,
-    ) -> Any:
-        return getattr(root, field)
+    ) -> list[DeclarativeBase]:
+        session = info.context["session"]
+        field = getattr(root, field_name)
+        return resolve_filtered(field, session, where=where, order=order, limit=limit, offset=offset)
 
     return resolver
 
@@ -128,24 +166,14 @@ def make_object_resolver(model: type[DeclarativeBase]) -> Callable[..., list[Dec
     def resolver(
         _root: None,
         info: GraphQLResolveInfo,
+        *,
         where: dict[str, Any] | None = None,
         order: list[dict[str, Any]] | None = None,
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[DeclarativeBase]:
         session = info.context["session"]
-        query = session.query(model)
-
-        query = filter_query(model, query, where)
-        query = order_query(model, query, order)
-
-        if limit:
-            query = query.limit(limit)
-
-        if offset:
-            query = query.offset(offset)
-
-        return query.all()
+        return resolve_filtered(model, session, where=where, order=order, limit=limit, offset=offset)
 
     return resolver
 

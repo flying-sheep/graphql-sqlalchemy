@@ -15,7 +15,7 @@ from .args import make_args
 from .graphql_types import get_graphql_type_from_column
 from .helpers import get_relationships, get_table
 from .names import get_field_name, get_table_name
-from .resolvers import make_field_resolver
+from .resolvers import make_field_resolver, make_many_resolver
 from .types import Inputs, Objects
 
 
@@ -33,13 +33,17 @@ def build_object_type(model: type[DeclarativeBase], objects: Objects, inputs: In
         for name, relationship in get_relationships(model):
             related_model = relationship.mapper.entity
             object_type: GraphQLOutputType = objects[get_table_name(related_model)]
-            if relationship.direction in (interfaces.ONETOMANY, interfaces.MANYTOMANY):
+            is_filterable = relationship.direction in (interfaces.ONETOMANY, interfaces.MANYTOMANY)
+            if is_filterable:
                 object_type = GraphQLList(object_type)
+                make_resolver = make_many_resolver
+            else:
+                make_resolver = make_field_resolver
 
             fields[name] = GraphQLField(
                 object_type,
                 args=make_args(related_model, inputs),
-                resolve=make_field_resolver(name),
+                resolve=make_resolver(name),
             )
 
         return fields
