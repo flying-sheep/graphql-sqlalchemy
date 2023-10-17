@@ -4,6 +4,7 @@ from functools import partial
 from itertools import starmap
 from typing import Any, Callable, TypedDict
 
+from graphql import GraphQLResolveInfo
 from sqlalchemy import ColumnExpressionArgument, and_, not_, or_, true
 from sqlalchemy.orm import DeclarativeBase, InstrumentedAttribute, Query, Relationship, Session, interfaces
 
@@ -14,7 +15,7 @@ class InsDel(TypedDict):
 
 
 def make_field_resolver(field: str) -> Callable[..., Any]:
-    def resolver(root: type[DeclarativeBase], _info: Any) -> Any:
+    def resolver(root: type[DeclarativeBase], _info: GraphQLResolveInfo) -> Any:
         return getattr(root, field)
 
     return resolver
@@ -22,7 +23,7 @@ def make_field_resolver(field: str) -> Callable[..., Any]:
 
 def get_bool_operation(
     model_property: InstrumentedAttribute, operator: str, value: Any
-) -> bool | ColumnExpressionArgument[bool]:
+) -> ColumnExpressionArgument[bool]:
     if operator == "_eq":
         return model_property == value
 
@@ -118,7 +119,7 @@ def order_query(model: type[DeclarativeBase], query: Query, order: list[dict[str
 def make_object_resolver(model: type[DeclarativeBase]) -> Callable[..., list[DeclarativeBase]]:
     def resolver(
         _root: None,
-        info: Any,
+        info: GraphQLResolveInfo,
         where: dict[str, Any] | None = None,
         order: list[dict[str, Any]] | None = None,
         limit: int | None = None,
@@ -142,7 +143,7 @@ def make_object_resolver(model: type[DeclarativeBase]) -> Callable[..., list[Dec
 
 
 def make_pk_resolver(model: type[DeclarativeBase]) -> Callable[..., DeclarativeBase | None]:
-    def resolver(_root: None, info: Any, **kwargs: dict[str, Any]) -> DeclarativeBase:
+    def resolver(_root: None, info: GraphQLResolveInfo, **kwargs: dict[str, Any]) -> DeclarativeBase:
         session = info.context["session"]
         return session.query(model).get(kwargs)
 
@@ -173,7 +174,7 @@ def session_commit(session: Session) -> None:
 
 def make_insert_resolver(model: type[DeclarativeBase]) -> Callable[..., InsDel]:
     def resolver(
-        _root: None, info: Any, objects: list[dict[str, Any]], on_conflict: dict[str, Any] | None = None
+        _root: None, info: GraphQLResolveInfo, objects: list[dict[str, Any]], on_conflict: dict[str, Any] | None = None
     ) -> InsDel:
         session = info.context["session"]
         models = []
@@ -191,7 +192,7 @@ def make_insert_resolver(model: type[DeclarativeBase]) -> Callable[..., InsDel]:
 
 def make_insert_one_resolver(model: type[DeclarativeBase]) -> Callable[..., DeclarativeBase]:
     def resolver(
-        _root: None, info: Any, object: dict[str, Any], on_conflict: dict[str, Any] | None = None
+        _root: None, info: GraphQLResolveInfo, object: dict[str, Any], on_conflict: dict[str, Any] | None = None
     ) -> DeclarativeBase:
         session = info.context["session"]
 
@@ -203,7 +204,7 @@ def make_insert_one_resolver(model: type[DeclarativeBase]) -> Callable[..., Decl
 
 
 def make_delete_resolver(model: type[DeclarativeBase]) -> Callable[..., InsDel]:
-    def resolver(_root: None, info: Any, where: dict[str, Any] | None = None) -> InsDel:
+    def resolver(_root: None, info: GraphQLResolveInfo, where: dict[str, Any] | None = None) -> InsDel:
         session = info.context["session"]
         query = session.query(model)
         query = filter_query(model, query, where)
@@ -218,7 +219,7 @@ def make_delete_resolver(model: type[DeclarativeBase]) -> Callable[..., InsDel]:
 
 
 def make_delete_by_pk_resolver(model: type[DeclarativeBase]) -> Callable[..., DeclarativeBase | None]:
-    def resolver(_root: None, info: Any, **kwargs: dict[str, Any]) -> DeclarativeBase | None:
+    def resolver(_root: None, info: GraphQLResolveInfo, **kwargs: dict[str, Any]) -> DeclarativeBase | None:
         session: Session = info.context["session"]
 
         row: DeclarativeBase | None = session.query(model).get(kwargs)
@@ -255,7 +256,7 @@ def update_query(
 def make_update_resolver(model: type[DeclarativeBase]) -> Callable[..., InsDel]:
     def resolver(
         _root: None,
-        info: Any,
+        info: GraphQLResolveInfo,
         where: dict[str, Any],
         _set: dict[str, Any] | None,
         _inc: dict[str, Any] | None,
@@ -274,7 +275,7 @@ def make_update_resolver(model: type[DeclarativeBase]) -> Callable[..., InsDel]:
 def make_update_by_pk_resolver(model: type[DeclarativeBase]) -> Callable[..., DeclarativeBase | None]:
     def resolver(
         _root: None,
-        info: Any,
+        info: GraphQLResolveInfo,
         _set: dict[str, Any] | None,
         _inc: dict[str, Any] | None,
         **pk_columns: dict[str, Any],
