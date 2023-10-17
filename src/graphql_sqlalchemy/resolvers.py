@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Generator
 from functools import partial
 from itertools import starmap
 from typing import Any, Callable, TypedDict
@@ -118,14 +119,13 @@ def order_query(
 
 def resolve_filtered(
     model: type[DeclarativeBase] | InstrumentedAttribute,
-    session: Session,
+    query: Query[DeclarativeBase],
+    *,
     where: dict[str, Any] | None = None,
     order: list[dict[str, Any]] | None = None,
     limit: int | None = None,
     offset: int | None = None,
 ) -> list[DeclarativeBase]:
-    query = session.query(model)
-
     query = filter_query(model, query, where)
     query = order_query(model, query, order)
 
@@ -139,15 +139,21 @@ def resolve_filtered(
 
 
 def make_field_resolver(field_name: str) -> Callable[..., Any]:
-    def field_resolver(root: type[DeclarativeBase], _info: GraphQLResolveInfo) -> Any:
+    def field_resolver(root: DeclarativeBase, _info: GraphQLResolveInfo) -> Any:
         return getattr(root, field_name)
 
     return field_resolver
 
 
+def pk_filter(instance: DeclarativeBase) -> Generator[ColumnExpressionArgument, None, None]:
+    model = instance.__class__
+    for column in model.__table__.primary_key:
+        yield getattr(model, column.name) == getattr(instance, column.name)
+
+
 def make_many_resolver(field_name: str) -> Callable[..., list[DeclarativeBase]]:
     def resolver(
-        root: type[DeclarativeBase],
+        root: DeclarativeBase,
         info: GraphQLResolveInfo,
         *,
         where: dict[str, Any] | None = None,
@@ -155,9 +161,13 @@ def make_many_resolver(field_name: str) -> Callable[..., list[DeclarativeBase]]:
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[DeclarativeBase]:
-        session = info.context["session"]
-        field = getattr(root, field_name)
-        return resolve_filtered(field, session, where=where, order=order, limit=limit, offset=offset)
+        if all(f is None for f in [where, order, limit, offset]):
+            return getattr(root, field_name)
+        session: Session = info.context["session"]
+        relationship: InstrumentedAttribute = getattr(root.__class__, field_name)
+        field_model = relationship.prop.entity.class_
+        query = session.query(field_model).select_from(root.__class__).join(relationship).filter(*pk_filter(root))
+        return resolve_filtered(field_model, query, where=where, order=order, limit=limit, offset=offset)
 
     return resolver
 
@@ -172,8 +182,9 @@ def make_object_resolver(model: type[DeclarativeBase]) -> Callable[..., list[Dec
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[DeclarativeBase]:
-        session = info.context["session"]
-        return resolve_filtered(model, session, where=where, order=order, limit=limit, offset=offset)
+        session: Session = info.context["session"]
+        query = session.query(model)
+        return resolve_filtered(model, query, where=where, order=order, limit=limit, offset=offset)
 
     return resolver
 
