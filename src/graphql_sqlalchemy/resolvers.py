@@ -6,7 +6,9 @@ from typing import Any, Callable, TypedDict
 
 from graphql import GraphQLResolveInfo
 from sqlalchemy import ColumnExpressionArgument, and_, not_, or_, true
-from sqlalchemy.orm import DeclarativeBase, InstrumentedAttribute, Query, Relationship, Session, interfaces
+from sqlalchemy.orm import DeclarativeBase, InstrumentedAttribute, Query, Session, interfaces
+
+from .helpers import get_mapper
 
 
 class InsDel(TypedDict):
@@ -77,17 +79,16 @@ def get_filter_operation(
 
         model_property: InstrumentedAttribute = getattr(model, name)
 
-        # fields
-        if model_property.impl.accepts_scalar_loader:
-            partial_bool = partial(get_bool_operation, model_property)
-            return and_(*starmap(partial_bool, exprs.items()))
-
         # relationships
-        assert isinstance(model_property.prop, Relationship)
-        if model_property.prop.direction in (interfaces.ONETOMANY, interfaces.MANYTOMANY):
-            elem_filter = get_filter_operation(model_property.prop.entity.class_, exprs)
-            return model_property.any(elem_filter)
-        return get_filter_operation(model_property, exprs)
+        if relationship := get_mapper(model).relationships.get(name):
+            if relationship.direction in (interfaces.ONETOMANY, interfaces.MANYTOMANY):
+                elem_filter = get_filter_operation(relationship.entity.class_, exprs)
+                return model_property.any(elem_filter)
+            return get_filter_operation(model_property, exprs)
+
+        # fields
+        partial_bool = partial(get_bool_operation, model_property)
+        return and_(*starmap(partial_bool, exprs.items()))
 
     return true()
 
