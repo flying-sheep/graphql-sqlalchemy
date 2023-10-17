@@ -16,22 +16,22 @@ pip install graphql-sqlalchemy
 # Usage
 
 ```python
-    from ariadne.asgi import GraphQL
-    from fastapi import FastAPI
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker, declarative_base
-    from graphql_sqlalchemy import build_schema
+from ariadne.asgi import GraphQL
+from fastapi import FastAPI
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, declarative_base
+from graphql_sqlalchemy import build_schema
 
-    engine = create_engine('sqlite:///config.db')
-    Base = declarative_base()
-    Session = sessionmaker(bind=engine)
+engine = create_engine('sqlite:///config.db')
+Base = declarative_base()
+Session = sessionmaker(bind=engine)
 
-    app = FastAPI()
-    session = Session()
+app = FastAPI()
+session = Session()
 
-    schema = build_schema(Base)
+schema = build_schema(Base)
 
-    app.mount("/graphql", GraphQL(schema, context_value=dict(session=session)))
+app.mount("/graphql", GraphQL(schema, context_value=dict(session=session)))
 ```
 
 # Query
