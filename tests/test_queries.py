@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 from graphql import GraphQLSchema, graphql_sync
 from graphql_sqlalchemy.schema import build_schema
-from sqlalchemy import Engine, ForeignKey
+from sqlalchemy import Column, Engine, ForeignKey, Table
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, registry, relationship
 
 if sys.version_info < (3, 11):
@@ -16,6 +16,14 @@ if sys.version_info < (3, 11):
 
 class Base(DeclarativeBase):
     registry = registry()
+
+
+article_tag_association = Table(
+    "article_tag",
+    Base.metadata,
+    Column("article_id", ForeignKey("article.id"), primary_key=True),
+    Column("tag_id", ForeignKey("tag.id"), primary_key=True),
+)
 
 
 class Author(Base):
@@ -32,6 +40,14 @@ class Article(Base):
     author_id: Mapped[int] = mapped_column(ForeignKey("author.id"))
     author: Mapped[Author] = relationship(back_populates="articles")
     rating: Mapped[int]
+    tags: Mapped[list[Tag]] = relationship(back_populates="articles", secondary=article_tag_association)
+
+
+class Tag(Base):
+    __tablename__ = "tag"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str]
+    articles: Mapped[list[Article]] = relationship(back_populates="tags", secondary=article_tag_association)
 
 
 @pytest.fixture(scope="session")
@@ -43,24 +59,27 @@ def gql_schema() -> GraphQLSchema:
 def example_session(db_engine: Engine, db_session: Session) -> Session:
     Base.metadata.create_all(bind=db_engine)
     with db_session.begin():
+        db_session.add(tag_politics := Tag(name="Politics"))
+        db_session.add(tag_sports := Tag(name="Sports"))
+
         db_session.add(felicias := Author(name="Felicitas"))
         db_session.add_all(
             [
                 Article(title="Felicitas good", author=felicias, rating=4),
-                Article(title="Felicitas better", author=felicias, rating=5),
+                Article(title="Felicitas better", author=felicias, rating=5, tags=[tag_politics, tag_sports]),
             ]
         )
         db_session.add(bjork := Author(name="Björk"))
         db_session.add_all(
             [
                 Article(title="Björk bad", author=bjork, rating=2),
-                Article(title="Björk good", author=bjork, rating=4),
+                Article(title="Björk good", author=bjork, rating=4, tags=[tag_politics]),
             ]
         )
         db_session.add(lundth := Author(name="Lundth"))
         db_session.add_all(
             [
-                Article(title="Lundth bad", author=lundth, rating=1),
+                Article(title="Lundth bad", author=lundth, rating=1, tags=[tag_sports]),
             ]
         )
         db_session.commit()
@@ -141,3 +160,19 @@ def test_nested_filter(
         assert article_titles == all_article_titles - {"Lundth bad"}
     else:
         assert article_titles == all_article_titles
+
+
+def test_nested_filter_many2many(db_session: Session, query_example: Callable[[str], Any]) -> None:
+    data = query_example(
+        """
+        query {
+            article(where: { tags: { name: { _eq: "Politics" } } }) {
+                id
+                title
+                rating
+            }
+        }
+        """
+    )
+    article_titles = {article["title"] for article in data["article"]}
+    assert article_titles == {"Felicitas better", "Björk good"}
