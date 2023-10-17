@@ -16,13 +16,6 @@ class InsDel(TypedDict):
     returning: list[DeclarativeBase]
 
 
-def make_field_resolver(field: str) -> Callable[..., Any]:
-    def resolver(root: type[DeclarativeBase], _info: GraphQLResolveInfo) -> Any:
-        return getattr(root, field)
-
-    return resolver
-
-
 def get_bool_operation(
     model_property: InstrumentedAttribute, operator: str, value: Any
 ) -> ColumnExpressionArgument[bool]:
@@ -115,6 +108,20 @@ def order_query(model: type[DeclarativeBase], query: Query, order: list[dict[str
             query = query.order_by(model_order())
 
     return query
+
+
+def make_field_resolver(field: str) -> Callable[..., Any]:
+    def resolver(
+        root: type[DeclarativeBase],
+        _info: GraphQLResolveInfo,
+        where: dict[str, Any] | None = None,
+        order: list[dict[str, Any]] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> Any:
+        return getattr(root, field)
+
+    return resolver
 
 
 def make_object_resolver(model: type[DeclarativeBase]) -> Callable[..., list[DeclarativeBase]]:

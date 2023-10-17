@@ -70,6 +70,9 @@ def get_where_input_type(model: type[DeclarativeBase], inputs: Inputs) -> GraphQ
 def get_order_input_type(model: type[DeclarativeBase], inputs: Inputs) -> GraphQLInputObjectType:
     type_name = get_field_name(model, "order_by")
 
+    if type_name in inputs:
+        return inputs[type_name]
+
     def get_fields() -> GraphQLInputFieldMap:
         fields = {}
 
