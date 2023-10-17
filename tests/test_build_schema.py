@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import cast
+from typing import Union, cast
 
 from graphql import GraphQLField, GraphQLInt, GraphQLNonNull, GraphQLObjectType
 from graphql_sqlalchemy import build_schema
@@ -21,7 +21,7 @@ class User(Base):  # type: ignore
 
 def test_build_schema() -> None:
     schema = build_schema(Base)
-    user = cast(GraphQLObjectType | None, schema.get_type("test"))
+    user = cast(Union[GraphQLObjectType, None], schema.get_type("test"))
     assert user
     f: GraphQLField = user.fields["some_id"]
     assert isinstance(f.type, GraphQLNonNull)
