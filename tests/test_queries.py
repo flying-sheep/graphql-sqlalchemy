@@ -151,7 +151,7 @@ def test_and_or(query_example: Callable[[str], Any], op: Literal["and", "or"], e
         pytest.param("", id="artcl_all"),
     ],
 )
-def test_nested_filter(
+def test_nested_filter_one2many(
     db_session: Session, query_example: Callable[[str], Any], filter_author: str, filter_article: str
 ) -> None:
     data = query_example(
@@ -187,7 +187,23 @@ def test_nested_filter(
         assert article_titles == all_article_titles
 
 
-def test_nested_filter_many2many(db_session: Session, query_example: Callable[[str], Any]) -> None:
+def test_nested_filter_many2one(query_example: Callable[[str], Any]) -> None:
+    data = query_example(
+        """
+        query {
+            article(where: { author: { name: { _eq: "Lundth" } } }) {
+                id
+                title
+                rating
+            }
+        }
+        """
+    )
+    article_titles = {article["title"] for article in data["article"]}
+    assert article_titles == {"Lundth bad"}
+
+
+def test_nested_filter_many2many(query_example: Callable[[str], Any]) -> None:
     data = query_example(
         """
         query {
