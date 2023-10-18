@@ -77,8 +77,8 @@ def get_filter_operation(model: type[DeclarativeBase], where: dict[str, Any]) ->
             if relationship.direction in (interfaces.ONETOMANY, interfaces.MANYTOMANY):
                 elem_filter = get_filter_operation(related_model, exprs)
                 return model_property.any(elem_filter)
-            # TODO: join
-            return get_filter_operation(related_model, exprs)
+            # else *TOONE:
+            return model_property.and_(get_filter_operation(related_model, exprs))
 
         # fields
         partial_bool = partial(get_bool_operation, model_property)
