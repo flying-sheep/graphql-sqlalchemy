@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Literal
 
 import pytest
 from graphql import GraphQLSchema, graphql_sync
@@ -69,11 +69,11 @@ def example_session(db_engine: Engine, db_session: Session) -> Session:
                 Article(title="Felicitas better", author=felicias, rating=5, tags=[tag_politics, tag_sports]),
             ]
         )
-        db_session.add(bjork := Author(name="Björk"))
+        db_session.add(bjork := Author(name="Bjørk"))
         db_session.add_all(
             [
-                Article(title="Björk bad", author=bjork, rating=2),
-                Article(title="Björk good", author=bjork, rating=4, tags=[tag_politics]),
+                Article(title="Bjørk bad", author=bjork, rating=2),
+                Article(title="Bjørk good", author=bjork, rating=4, tags=[tag_politics]),
             ]
         )
         db_session.add(lundth := Author(name="Lundth"))
@@ -103,13 +103,38 @@ def query_example(example_session: Session, gql_schema: GraphQLSchema) -> Callab
 def test_all(query_example: Callable[[str], Any]) -> None:
     data = query_example("query { author { name } }")
     author_names = {author["name"] for author in data["author"]}
-    assert author_names == {"Felicitas", "Björk", "Lundth"}
+    assert author_names == {"Felicitas", "Bjørk", "Lundth"}
 
 
 def test_simple_filter(query_example: Callable[[str], Any]) -> None:
     data = query_example("query { article(where: { rating: { _gte: 4 } }) { title } }")
     article_titles = {article["title"] for article in data["article"]}
-    assert article_titles == {"Felicitas good", "Felicitas better", "Björk good"}
+    assert article_titles == {"Felicitas good", "Felicitas better", "Bjørk good"}
+
+
+@pytest.mark.parametrize(
+    ("op", "expected"),
+    [
+        pytest.param("and", set(), id="and"),
+        pytest.param("or", {"Felicitas", "Lundth"}, id="or"),
+    ],
+)
+def test_and_or(query_example: Callable[[str], Any], op: Literal["and", "or"], expected: set[str]) -> None:
+    is_feli = '{ name: { _eq: "Felicitas" } }'
+    is_lundth = '{ name: { _eq: "Lundth" } }'
+    condition = f"{{ _{op}: [{is_feli}, {is_lundth}] }}"
+    data = query_example(
+        f"""
+        query {{
+            author(where: {condition}) {{
+                id
+                name
+            }}
+        }}
+        """
+    )
+    author_names = {author["name"] for author in data["author"]}
+    assert author_names == expected
 
 
 @pytest.mark.parametrize(
@@ -126,7 +151,7 @@ def test_simple_filter(query_example: Callable[[str], Any]) -> None:
         pytest.param("", id="artcl_all"),
     ],
 )
-def test_nested_filter(
+def test_nested_filter_one2many(
     db_session: Session, query_example: Callable[[str], Any], filter_author: str, filter_article: str
 ) -> None:
     data = query_example(
@@ -146,7 +171,7 @@ def test_nested_filter(
     )
     author_names = {author["name"] for author in data["author"]}
     if filter_author:
-        assert author_names == {"Felicitas", "Björk"}
+        assert author_names == {"Felicitas", "Bjørk"}
     else:
         assert len(author_names) == 3
 
@@ -155,14 +180,30 @@ def test_nested_filter(
     with db_session.begin():
         all_article_titles = {row[0] for row in db_session.query(Article.title).all()}
     if filter_article:
-        assert article_titles == {"Felicitas good", "Felicitas better", "Björk good"}
+        assert article_titles == {"Felicitas good", "Felicitas better", "Bjørk good"}
     elif filter_author:
         assert article_titles == all_article_titles - {"Lundth bad"}
     else:
         assert article_titles == all_article_titles
 
 
-def test_nested_filter_many2many(db_session: Session, query_example: Callable[[str], Any]) -> None:
+def test_nested_filter_many2one(query_example: Callable[[str], Any]) -> None:
+    data = query_example(
+        """
+        query {
+            article(where: { author: { name: { _eq: "Lundth" } } }) {
+                id
+                title
+                rating
+            }
+        }
+        """
+    )
+    article_titles = {article["title"] for article in data["article"]}
+    assert article_titles == {"Lundth bad"}
+
+
+def test_nested_filter_many2many(query_example: Callable[[str], Any]) -> None:
     data = query_example(
         """
         query {
@@ -175,4 +216,29 @@ def test_nested_filter_many2many(db_session: Session, query_example: Callable[[s
         """
     )
     article_titles = {article["title"] for article in data["article"]}
-    assert article_titles == {"Felicitas better", "Björk good"}
+    assert article_titles == {"Felicitas better", "Bjørk good"}
+
+
+@pytest.mark.parametrize(
+    ("op", "expected"),
+    [
+        pytest.param("and", {"Bjørk"}, id="and"),
+        pytest.param("or", {"Felicitas", "Bjørk", "Lundth"}, id="or"),
+    ],
+)
+def test_nested_and_or(query_example: Callable[[str], Any], op: Literal["and", "or"], expected: set[str]) -> None:
+    has_good = '{ articles: { title: { _like: "%good" } } }'
+    has_bad = '{ articles: { title: { _like: "%bad" } } }'
+    condition = f"{{ _{op}: [{has_good}, {has_bad}] }}"
+    data = query_example(
+        f"""
+        query {{
+            author(where: {condition}) {{
+                id
+                name
+            }}
+        }}
+        """
+    )
+    author_names = {author["name"] for author in data["author"]}
+    assert author_names == expected

@@ -56,9 +56,7 @@ def get_bool_operation(
     raise Exception("Invalid operator")
 
 
-def get_filter_operation(
-    model: type[DeclarativeBase] | InstrumentedAttribute, where: dict[str, Any]
-) -> ColumnExpressionArgument[bool]:
+def get_filter_operation(model: type[DeclarativeBase], where: dict[str, Any]) -> ColumnExpressionArgument[bool]:
     partial_filter = partial(get_filter_operation, model)
 
     for name, exprs in where.items():
@@ -75,10 +73,12 @@ def get_filter_operation(
 
         # relationships
         if relationship := get_mapper(model).relationships.get(name):
+            related_model = relationship.entity.class_
             if relationship.direction in (interfaces.ONETOMANY, interfaces.MANYTOMANY):
-                elem_filter = get_filter_operation(relationship.entity.class_, exprs)
+                elem_filter = get_filter_operation(related_model, exprs)
                 return model_property.any(elem_filter)
-            return get_filter_operation(model_property, exprs)
+            # else *TOONE:
+            return model_property.and_(get_filter_operation(related_model, exprs))
 
         # fields
         partial_bool = partial(get_bool_operation, model_property)
