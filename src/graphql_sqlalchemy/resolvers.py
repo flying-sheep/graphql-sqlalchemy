@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from collections.abc import Generator
+from collections.abc import Generator, Sequence
 from functools import partial
 from itertools import starmap
-from typing import Any, Callable, TypedDict
+from typing import Any, Callable, TypedDict, TypeVar
 
-from sqlalchemy import ColumnExpressionArgument, and_, not_, or_, true
-from sqlalchemy.orm import DeclarativeBase, InstrumentedAttribute, Query, Session, interfaces
+from sqlalchemy import ColumnExpressionArgument, Select, and_, delete, not_, or_, select, true, update
+from sqlalchemy.orm import DeclarativeBase, InstrumentedAttribute, Session, interfaces
+from sqlalchemy.sql.dml import ReturningDelete, ReturningUpdate
 
 from .helpers import get_mapper
 from .types import ResolveInfo
@@ -14,7 +15,7 @@ from .types import ResolveInfo
 
 class InsDel(TypedDict):
     affected_rows: int
-    returning: list[DeclarativeBase]
+    returning: Sequence[DeclarativeBase]
 
 
 def get_bool_operation(
@@ -87,53 +88,69 @@ def get_filter_operation(model: type[DeclarativeBase], where: dict[str, Any]) ->
     return true()
 
 
-def filter_query(model: type[DeclarativeBase], query: Query, where: dict[str, Any] | None = None) -> Query:
+W = TypeVar(
+    "W",
+    Select[tuple[DeclarativeBase]],
+    ReturningUpdate[tuple[DeclarativeBase]],
+    ReturningDelete[tuple[DeclarativeBase]],
+)
+
+
+def filter_selection(
+    model: type[DeclarativeBase],
+    selection: W,
+    *,
+    where: dict[str, Any] | None = None,
+) -> W:
     if not where:
-        return query
+        return selection
 
-    query_filter = query.filter
     for name, exprs in where.items():
-        query = query_filter(get_filter_operation(model, {name: exprs}))
+        selection = selection.filter(get_filter_operation(model, {name: exprs}))
 
-    return query
+    return selection
 
 
-def order_query(
+def order_selection(
     model: type[DeclarativeBase] | InstrumentedAttribute,
-    query: Query,
+    selection: Select[tuple[DeclarativeBase]] | None = None,
     order: list[dict[str, Any]] | None = None,
-) -> Query:
+) -> Select[tuple[DeclarativeBase]]:
+    if selection is None:
+        selection = select(model)
     if not order:
-        return query
+        return selection
 
     for expr in order:
         for name, direction in expr.items():
             model_property = getattr(model, name)
             model_order = getattr(model_property, direction)
-            query = query.order_by(model_order())
+            selection = selection.order_by(model_order())
 
-    return query
+    return selection
 
 
 def resolve_filtered(
     model: type[DeclarativeBase],
-    query: Query[DeclarativeBase],
+    selection: Select[tuple[DeclarativeBase]] | None = None,
     *,
     where: dict[str, Any] | None = None,
     order: list[dict[str, Any]] | None = None,
     limit: int | None = None,
     offset: int | None = None,
-) -> list[DeclarativeBase]:
-    query = filter_query(model, query, where)
-    query = order_query(model, query, order)
+) -> Select[tuple[DeclarativeBase]]:
+    if selection is None:
+        selection = select(model)
+    selection = filter_selection(model, selection, where=where)
+    selection = order_selection(model, selection, order)
 
     if limit:
-        query = query.limit(limit)
+        selection = selection.limit(limit)
 
     if offset:
-        query = query.offset(offset)
+        selection = selection.offset(offset)
 
-    return query.all()
+    return selection
 
 
 def make_field_resolver(field_name: str) -> Callable[..., Any]:
@@ -149,7 +166,7 @@ def pk_filter(instance: DeclarativeBase) -> Generator[ColumnExpressionArgument, 
         yield getattr(model, column.name) == getattr(instance, column.name)
 
 
-def make_many_resolver(field_name: str) -> Callable[..., list[DeclarativeBase]]:
+def make_many_resolver(field_name: str) -> Callable[..., Sequence[DeclarativeBase]]:
     def resolver(
         root: DeclarativeBase,
         info: ResolveInfo,
@@ -158,19 +175,20 @@ def make_many_resolver(field_name: str) -> Callable[..., list[DeclarativeBase]]:
         order: list[dict[str, Any]] | None = None,
         limit: int | None = None,
         offset: int | None = None,
-    ) -> list[DeclarativeBase]:
+    ) -> Sequence[DeclarativeBase]:
         if all(f is None for f in [where, order, limit, offset]):
             return getattr(root, field_name)
         session = info.context["session"]
         relationship: InstrumentedAttribute = getattr(root.__class__, field_name)
         field_model = relationship.prop.entity.class_
-        query = session.query(field_model).select_from(root.__class__).join(relationship).filter(*pk_filter(root))
-        return resolve_filtered(field_model, query, where=where, order=order, limit=limit, offset=offset)
+        selection = select(field_model).select_from(root.__class__).join(relationship).filter(*pk_filter(root))
+        selection = resolve_filtered(field_model, selection, where=where, order=order, limit=limit, offset=offset)
+        return session.execute(selection).scalars().all()
 
     return resolver
 
 
-def make_object_resolver(model: type[DeclarativeBase]) -> Callable[..., list[DeclarativeBase]]:
+def make_object_resolver(model: type[DeclarativeBase]) -> Callable[..., Sequence[DeclarativeBase]]:
     def resolver(
         _root: None,
         info: ResolveInfo,
@@ -179,10 +197,10 @@ def make_object_resolver(model: type[DeclarativeBase]) -> Callable[..., list[Dec
         order: list[dict[str, Any]] | None = None,
         limit: int | None = None,
         offset: int | None = None,
-    ) -> list[DeclarativeBase]:
+    ) -> Sequence[DeclarativeBase]:
         session = info.context["session"]
-        query = session.query(model)
-        return resolve_filtered(model, query, where=where, order=order, limit=limit, offset=offset)
+        selection = resolve_filtered(model, where=where, order=order, limit=limit, offset=offset)
+        return session.execute(selection).scalars().all()
 
     return resolver
 
@@ -190,7 +208,7 @@ def make_object_resolver(model: type[DeclarativeBase]) -> Callable[..., list[Dec
 def make_pk_resolver(model: type[DeclarativeBase]) -> Callable[..., DeclarativeBase | None]:
     def resolver(_root: None, info: ResolveInfo, **kwargs: dict[str, Any]) -> DeclarativeBase:
         session = info.context["session"]
-        return session.query(model).get(kwargs)
+        return session.get_one(model, kwargs)
 
     return resolver
 
@@ -251,14 +269,12 @@ def make_insert_one_resolver(model: type[DeclarativeBase]) -> Callable[..., Decl
 def make_delete_resolver(model: type[DeclarativeBase]) -> Callable[..., InsDel]:
     def resolver(_root: None, info: ResolveInfo, where: dict[str, Any] | None = None) -> InsDel:
         session = info.context["session"]
-        query = session.query(model)
-        query = filter_query(model, query, where)
-
-        rows = query.all()
-        affected = query.delete()
+        deletion = filter_selection(model, delete(model).returning(model), where=where)
+        result = session.execute(deletion)
+        rows = result.scalars().all()
         session_commit(session)
-
-        return InsDel(affected_rows=affected, returning=rows)
+        # TODO: is len(rows) correct?
+        return InsDel(affected_rows=len(rows), returning=rows)
 
     return resolver
 
@@ -267,35 +283,34 @@ def make_delete_by_pk_resolver(model: type[DeclarativeBase]) -> Callable[..., De
     def resolver(_root: None, info: ResolveInfo, **kwargs: dict[str, Any]) -> DeclarativeBase | None:
         session = info.context["session"]
 
-        row: DeclarativeBase | None = session.query(model).get(kwargs)
-        if row:
-            session.delete(row)
-            session_commit(session)
+        row = session.get(model, kwargs)
+        if row is None:
             return row
 
-        return None
+        session.delete(row)
+        session_commit(session)
+        return row
 
     return resolver
 
 
-def update_query(
-    query: Query,
+def update_selection(
     model: type[DeclarativeBase],
+    selection: ReturningUpdate[tuple[DeclarativeBase]],
     _set: dict[str, Any] | None = None,
     _inc: dict[str, Any] | None = None,
-) -> int:
-    affected = 0
+) -> ReturningUpdate[tuple[DeclarativeBase]]:
     if _inc:
         to_increment = {}
         for column_name, increment in _inc.items():
             to_increment[column_name] = getattr(model, column_name) + increment
 
-        affected += query.update(to_increment)
+        selection = selection.values(**to_increment)
 
     if _set:
-        affected += query.update(_set)
+        selection = selection.values(**_set)
 
-    return affected
+    return selection
 
 
 def make_update_resolver(model: type[DeclarativeBase]) -> Callable[..., InsDel]:
@@ -307,12 +322,12 @@ def make_update_resolver(model: type[DeclarativeBase]) -> Callable[..., InsDel]:
         _inc: dict[str, Any] | None,
     ) -> InsDel:
         session = info.context["session"]
-        query = session.query(model)
-        query = filter_query(model, query, where)
-        affected = update_query(query, model, _set, _inc)
+        selection = filter_selection(model, update(model).returning(model), where=where)
+        selection = update_selection(model, selection, _set, _inc)
+        result = session.execute(selection).scalars().all()
         session_commit(session)
-
-        return InsDel(affected_rows=affected, returning=query.all())
+        # TODO: is len(result) correct?
+        return InsDel(affected_rows=len(result), returning=result)
 
     return resolver
 
@@ -326,12 +341,11 @@ def make_update_by_pk_resolver(model: type[DeclarativeBase]) -> Callable[..., De
         **pk_columns: dict[str, Any],
     ) -> DeclarativeBase | None:
         session = info.context["session"]
-        query = session.query(model).filter_by(**pk_columns)
-
-        if update_query(query, model, _set, _inc):
+        selection = update(model).returning(model).filter_by(**pk_columns)
+        selection = update_selection(model, selection, _set, _inc)
+        result = session.execute(selection).scalar_one_or_none()
+        if result is not None:
             session_commit(session)
-            return query.one()
-
-        return None
+        return result
 
     return resolver
