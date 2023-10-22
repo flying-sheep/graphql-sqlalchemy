@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from typing import Any, Literal
 
 import pytest
@@ -56,7 +56,7 @@ def gql_schema() -> GraphQLSchema:
 
 
 @pytest.fixture()
-def example_session(db_engine: Engine, db_session: Session) -> Session:
+def example_session(db_engine: Engine, db_session: Session) -> Generator[Session, None, None]:
     Base.metadata.create_all(bind=db_engine)
     with db_session.begin():
         db_session.add(tag_politics := Tag(name="Politics"))
@@ -83,7 +83,10 @@ def example_session(db_engine: Engine, db_session: Session) -> Session:
             ]
         )
         db_session.commit()
-    return db_session
+
+    yield db_session
+
+    Base.metadata.drop_all(bind=db_engine)
 
 
 @pytest.fixture()
