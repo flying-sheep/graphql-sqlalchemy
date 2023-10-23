@@ -91,7 +91,8 @@ def example_session(db_engine: Engine, db_session: Session) -> Generator[Session
 
 @pytest.fixture()
 def query_example(example_session: Session, gql_schema: GraphQLSchema) -> Callable[[str], Any]:
-    def query(source: str) -> Any:
+    def query(q: str) -> Any:
+        source = f"query {{ {q} }}"
         result = graphql_sync(gql_schema, source, context_value={"session": example_session})
         if example_session._transaction:
             # TODO: make unnecessary
@@ -103,16 +104,27 @@ def query_example(example_session: Session, gql_schema: GraphQLSchema) -> Callab
     return query
 
 
-def test_all(query_example: Callable[[str], Any]) -> None:
-    data = query_example("query { author { name } }")
+@pytest.mark.parametrize("filt", ["", "(where: { })"])
+def test_all(query_example: Callable[[str], Any], filt: str) -> None:
+    data = query_example(f"author{filt} {{ name }}")
     author_names = {author["name"] for author in data["author"]}
     assert author_names == {"Felicitas", "Bjørk", "Lundth"}
 
 
 def test_simple_filter(query_example: Callable[[str], Any]) -> None:
-    data = query_example("query { article(where: { rating: { _gte: 4 } }) { title } }")
+    data = query_example("article(where: { rating: { _gte: 4 } }) { title }")
     article_titles = {article["title"] for article in data["article"]}
     assert article_titles == {"Felicitas good", "Felicitas better", "Bjørk good"}
+
+
+@pytest.mark.parametrize("op", [None, "and"])
+def test_multi_filter(query_example: Callable[[str], Any], op: Literal[None, "and"]) -> None:
+    c1 = "rating: { _gte: 4 }"
+    c2 = 'tags: { name: { _eq: "Politics" } }'
+    conditions = f"{c1} {c2}" if op is None else f"_{op}: [{{ {c1} }}, {{ {c2} }}]"
+    data = query_example(f"article(where: {{ {conditions} }}) {{ title }}")
+    article_titles = {article["title"] for article in data["article"]}
+    assert article_titles == {"Felicitas better", "Bjørk good"}
 
 
 @pytest.mark.parametrize(
@@ -126,16 +138,7 @@ def test_and_or(query_example: Callable[[str], Any], op: Literal["and", "or"], e
     is_feli = '{ name: { _eq: "Felicitas" } }'
     is_lundth = '{ name: { _eq: "Lundth" } }'
     condition = f"{{ _{op}: [{is_feli}, {is_lundth}] }}"
-    data = query_example(
-        f"""
-        query {{
-            author(where: {condition}) {{
-                id
-                name
-            }}
-        }}
-        """
-    )
+    data = query_example(f"author(where: {condition}) {{ id name }}")
     author_names = {author["name"] for author in data["author"]}
     assert author_names == expected
 
@@ -159,15 +162,10 @@ def test_nested_filter_one2many(
 ) -> None:
     data = query_example(
         f"""
-        query {{
-            author{filter_author} {{
-                id
-                name
-                articles{filter_article} {{
-                    id
-                    title
-                    rating
-                }}
+        author{filter_author} {{
+            id name
+            articles{filter_article} {{
+                id title rating
             }}
         }}
         """
@@ -193,12 +191,8 @@ def test_nested_filter_one2many(
 def test_nested_filter_many2one(query_example: Callable[[str], Any]) -> None:
     data = query_example(
         """
-        query {
-            article(where: { author: { name: { _eq: "Lundth" } } }) {
-                id
-                title
-                rating
-            }
+        article(where: { author: { name: { _eq: "Lundth" } } }) {
+            id title rating
         }
         """
     )
@@ -209,12 +203,8 @@ def test_nested_filter_many2one(query_example: Callable[[str], Any]) -> None:
 def test_nested_filter_many2many(query_example: Callable[[str], Any]) -> None:
     data = query_example(
         """
-        query {
-            article(where: { tags: { name: { _eq: "Politics" } } }) {
-                id
-                title
-                rating
-            }
+        article(where: { tags: { name: { _eq: "Politics" } } }) {
+            id title rating
         }
         """
     )
@@ -233,15 +223,6 @@ def test_nested_and_or(query_example: Callable[[str], Any], op: Literal["and", "
     has_good = '{ articles: { title: { _like: "%good" } } }'
     has_bad = '{ articles: { title: { _like: "%bad" } } }'
     condition = f"{{ _{op}: [{has_good}, {has_bad}] }}"
-    data = query_example(
-        f"""
-        query {{
-            author(where: {condition}) {{
-                id
-                name
-            }}
-        }}
-        """
-    )
+    data = query_example(f"author(where: {condition}) {{ id name }}")
     author_names = {author["name"] for author in data["author"]}
     assert author_names == expected

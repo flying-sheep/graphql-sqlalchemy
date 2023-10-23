@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from collections.abc import Generator, Sequence
+from collections.abc import Generator, Mapping, Sequence
 from functools import partial
 from itertools import starmap
+from types import MappingProxyType
 from typing import Any, Callable, TypedDict, TypeVar
 
 from sqlalchemy import ColumnExpressionArgument, Select, and_, delete, not_, or_, select, true, update
@@ -57,35 +58,40 @@ def get_bool_operation(
     raise Exception("Invalid operator")
 
 
-def get_filter_operation(model: type[DeclarativeBase], where: dict[str, Any]) -> ColumnExpressionArgument[bool]:
+def get_filter_operation(model: type[DeclarativeBase], where: Mapping[str, Any]) -> ColumnExpressionArgument[bool]:
     partial_filter = partial(get_filter_operation, model)
 
-    for name, exprs in where.items():
-        if name == "_or":
-            return or_(*map(partial_filter, exprs))
+    if len(where) == 0:
+        return true()
 
-        if name == "_not":
-            return not_(partial_filter(exprs))
+    if len(where) > 1:
+        return and_(*(partial_filter({name: expr}) for name, expr in where.items()))
 
-        if name == "_and":
-            return and_(*map(partial_filter, exprs))
+    # Single filter
+    [(name, exprs)] = where.items()
+    if name == "_or":
+        return or_(*map(partial_filter, exprs))
 
-        model_property: InstrumentedAttribute = getattr(model, name)
+    if name == "_not":
+        return not_(partial_filter(exprs))
 
-        # relationships
-        if relationship := get_mapper(model).relationships.get(name):
-            related_model = relationship.entity.class_
-            if relationship.direction in (interfaces.ONETOMANY, interfaces.MANYTOMANY):
-                elem_filter = get_filter_operation(related_model, exprs)
-                return model_property.any(elem_filter)
-            # else *TOONE:
-            return model_property.and_(get_filter_operation(related_model, exprs))
+    if name == "_and":
+        return and_(*map(partial_filter, exprs))
 
-        # fields
-        partial_bool = partial(get_bool_operation, model_property)
-        return and_(*starmap(partial_bool, exprs.items()))
+    model_property: InstrumentedAttribute = getattr(model, name)
 
-    return true()
+    # relationships
+    if relationship := get_mapper(model).relationships.get(name):
+        related_model = relationship.entity.class_
+        if relationship.direction in (interfaces.ONETOMANY, interfaces.MANYTOMANY):
+            elem_filter = get_filter_operation(related_model, exprs)
+            return model_property.any(elem_filter)
+        # else *TOONE:
+        return model_property.and_(get_filter_operation(related_model, exprs))
+
+    # fields
+    partial_bool = partial(get_bool_operation, model_property)
+    return and_(*starmap(partial_bool, exprs.items()))
 
 
 W = TypeVar(
@@ -100,15 +106,9 @@ def filter_selection(
     model: type[DeclarativeBase],
     selection: W,
     *,
-    where: dict[str, Any] | None = None,
+    where: Mapping[str, Any] = MappingProxyType({}),
 ) -> W:
-    if not where:
-        return selection
-
-    for name, exprs in where.items():
-        selection = selection.filter(get_filter_operation(model, {name: exprs}))
-
-    return selection
+    return selection.where(get_filter_operation(model, where))
 
 
 def order_selection(
@@ -134,7 +134,7 @@ def resolve_filtered(
     model: type[DeclarativeBase],
     selection: Select[tuple[DeclarativeBase]] | None = None,
     *,
-    where: dict[str, Any] | None = None,
+    where: Mapping[str, Any] = MappingProxyType({}),
     order: list[dict[str, Any]] | None = None,
     limit: int | None = None,
     offset: int | None = None,
@@ -182,7 +182,7 @@ def make_many_resolver(field_name: str) -> Callable[..., Sequence[DeclarativeBas
         relationship: InstrumentedAttribute = getattr(root.__class__, field_name)
         field_model = relationship.prop.entity.class_
         selection = select(field_model).select_from(root.__class__).join(relationship).filter(*pk_filter(root))
-        selection = resolve_filtered(field_model, selection, where=where, order=order, limit=limit, offset=offset)
+        selection = resolve_filtered(field_model, selection, where=where or {}, order=order, limit=limit, offset=offset)
         return session.execute(selection).scalars().all()
 
     return resolver
@@ -193,7 +193,7 @@ def make_object_resolver(model: type[DeclarativeBase]) -> Callable[..., Sequence
         _root: None,
         info: ResolveInfo,
         *,
-        where: dict[str, Any] | None = None,
+        where: Mapping[str, Any] = MappingProxyType({}),
         order: list[dict[str, Any]] | None = None,
         limit: int | None = None,
         offset: int | None = None,
@@ -214,7 +214,10 @@ def make_pk_resolver(model: type[DeclarativeBase]) -> Callable[..., DeclarativeB
 
 
 def session_add_object(
-    obj: dict[str, Any], model: type[DeclarativeBase], session: Session, on_conflict: dict[str, Any] | None = None
+    obj: dict[str, Any],
+    model: type[DeclarativeBase],
+    session: Session,
+    on_conflict: dict[str, Any] | None = None,
 ) -> DeclarativeBase:
     instance = model()
     for key, value in obj.items():
@@ -237,7 +240,10 @@ def session_commit(session: Session) -> None:
 
 def make_insert_resolver(model: type[DeclarativeBase]) -> Callable[..., InsDel]:
     def resolver(
-        _root: None, info: ResolveInfo, objects: list[dict[str, Any]], on_conflict: dict[str, Any] | None = None
+        _root: None,
+        info: ResolveInfo,
+        objects: list[dict[str, Any]],
+        on_conflict: dict[str, Any] | None = None,
     ) -> InsDel:
         session = info.context["session"]
         models = []
@@ -255,7 +261,10 @@ def make_insert_resolver(model: type[DeclarativeBase]) -> Callable[..., InsDel]:
 
 def make_insert_one_resolver(model: type[DeclarativeBase]) -> Callable[..., DeclarativeBase]:
     def resolver(
-        _root: None, info: ResolveInfo, object: dict[str, Any], on_conflict: dict[str, Any] | None = None
+        _root: None,
+        info: ResolveInfo,
+        object: dict[str, Any],
+        on_conflict: dict[str, Any] | None = None,
     ) -> DeclarativeBase:
         session = info.context["session"]
 
@@ -267,7 +276,11 @@ def make_insert_one_resolver(model: type[DeclarativeBase]) -> Callable[..., Decl
 
 
 def make_delete_resolver(model: type[DeclarativeBase]) -> Callable[..., InsDel]:
-    def resolver(_root: None, info: ResolveInfo, where: dict[str, Any] | None = None) -> InsDel:
+    def resolver(
+        _root: None,
+        info: ResolveInfo,
+        where: Mapping[str, Any] = MappingProxyType({}),
+    ) -> InsDel:
         session = info.context["session"]
         deletion = filter_selection(model, delete(model).returning(model), where=where)
         result = session.execute(deletion)
