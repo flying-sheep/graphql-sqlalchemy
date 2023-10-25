@@ -12,13 +12,7 @@ QueryCallable = Callable[[str], dict[str, Any]]
 
 
 def test_insert_one(mutation_example: MutationCallable, query_example: QueryCallable) -> None:
-    mut_data = mutation_example(
-        """
-        insert_author_one(object: { name: "Lisa" }) {
-            name
-        }
-        """
-    )
+    mut_data = mutation_example('insert_author_one(object: { name: "Lisa" }) { name }')
     assert mut_data["insert_author_one"] == {"name": "Lisa"}
 
     q_data = query_example("author { name }")
@@ -53,3 +47,29 @@ def test_insert_many(mutation_example: MutationCallable, query_example: QueryCal
     # check not only that Lisa is there but also that there’s no two Bjørks somehow
     author_names = sorted(author["name"] for author in q_data["author"])
     assert author_names == ["Bjørk", "Felicitas", "Lisa", "Lundth"]
+
+
+def test_delete_by_pk(mutation_example: MutationCallable, query_example: QueryCallable) -> None:
+    mut_data = mutation_example('delete_article_by_pk(title: "Bjørk bad") { title }')
+    assert mut_data["delete_article_by_pk"] == {"title": "Bjørk bad"}
+
+    q_data = query_example("article { title author { name } }")
+    article_titles = {article["title"] for article in q_data["article"] if article["author"]["name"] == "Bjørk"}
+    assert article_titles == {"Bjørk good"}
+
+
+def test_delete_many(mutation_example: MutationCallable, query_example: QueryCallable) -> None:
+    mut_data = mutation_example(
+        """
+        delete_article(
+            where: { author: { name: { _eq: "Lundth" } } }
+        ) {
+            returning { title }
+        }
+        """
+    )
+    assert mut_data["delete_article"] == {"title": "Lundth bad"}
+
+    q_data = query_example("article { title author { name } }")
+    article_titles = {article["title"] for article in q_data["article"] if article["author"]["name"] == "Bjørk"}
+    assert article_titles == {"Bjørk good"}
