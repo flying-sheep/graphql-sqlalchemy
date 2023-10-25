@@ -25,7 +25,7 @@ def test_insert_one(mutation_example: MutationCallable, query_example: QueryCall
     assert author_names == {"Felicitas", "Bjørk", "Lundth", "Lisa"}
 
 
-@pytest.mark.parametrize("merge", [True, False])
+@pytest.mark.parametrize("merge", [True, False], ids=["merge", "no_merge"])
 def test_insert_many(mutation_example: MutationCallable, query_example: QueryCallable, merge: bool) -> None:
     data = mutation_example(
         f"""
