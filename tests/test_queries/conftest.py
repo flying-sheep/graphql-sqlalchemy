@@ -90,8 +90,8 @@ def example_session(db_engine: Engine, db_session: Session) -> Generator[Session
 
 
 @pytest.fixture()
-def query_example(example_session: Session, gql_schema: GraphQLSchema) -> Callable[[str], Any]:
-    def query(q: str) -> Any:
+def query_example(example_session: Session, gql_schema: GraphQLSchema) -> Callable[[str], dict[str, Any]]:
+    def query(q: str) -> dict[str, Any]:
         source = f"query {{ {q} }}"
         result = graphql_sync(gql_schema, source, context_value={"session": example_session})
         if example_session._transaction:
@@ -99,6 +99,7 @@ def query_example(example_session: Session, gql_schema: GraphQLSchema) -> Callab
             example_session._transaction.close()
         if result.errors:
             raise result.errors[0] if len(result.errors) == 1 else ExceptionGroup("Invalid Query", result.errors)
+        assert result.data is not None
         return result.data
 
     return query

@@ -5,10 +5,12 @@ from typing import Any, Literal
 
 import pytest
 
+# In this file, we only test `where` so we always get {typename: list[result]}
+QueryCallable = Callable[[str], dict[str, list[dict[str, Any]]]]
 
-@pytest.mark.parametrize("filt", ["", "(where: { })"])
-def test_all(query_example: Callable[[str], Any], filt: str) -> None:
-    data = query_example(f"author{filt} {{ name }}")
+
+def test_all(query_example: QueryCallable) -> None:
+    data = query_example("author(where: { }) { name }")
     author_names = {author["name"] for author in data["author"]}
     assert author_names == {"Felicitas", "Bjørk", "Lundth"}
 
@@ -20,14 +22,14 @@ def test_all(query_example: Callable[[str], Any], filt: str) -> None:
         ("_not: { rating: { _gt: 3 } }", {"Bjørk bad", "Lundth bad"}),
     ],
 )
-def test_simple_filter(query_example: Callable[[str], Any], condition: str, expected: set[str]) -> None:
+def test_simple_filter(query_example: QueryCallable, condition: str, expected: set[str]) -> None:
     data = query_example(f"article(where: {{ {condition} }}) {{ title }}")
     article_titles = {article["title"] for article in data["article"]}
     assert article_titles == expected
 
 
 @pytest.mark.parametrize("op", [None, "and"])
-def test_multi_filter(query_example: Callable[[str], Any], op: Literal[None, "and"]) -> None:
+def test_multi_filter(query_example: QueryCallable, op: Literal[None, "and"]) -> None:
     c1 = "rating: { _gte: 4 }"
     c2 = 'tags: { name: { _eq: "Politics" } }'
     conditions = f"{c1} {c2}" if op is None else f"_{op}: [{{ {c1} }}, {{ {c2} }}]"
@@ -43,7 +45,7 @@ def test_multi_filter(query_example: Callable[[str], Any], op: Literal[None, "an
         pytest.param("or", {"Felicitas", "Lundth"}, id="or"),
     ],
 )
-def test_and_or(query_example: Callable[[str], Any], op: Literal["and", "or"], expected: set[str]) -> None:
+def test_and_or(query_example: QueryCallable, op: Literal["and", "or"], expected: set[str]) -> None:
     is_feli = '{ name: { _eq: "Felicitas" } }'
     is_lundth = '{ name: { _eq: "Lundth" } }'
     condition = f"{{ _{op}: [{is_feli}, {is_lundth}] }}"
@@ -66,7 +68,7 @@ def test_and_or(query_example: Callable[[str], Any], op: Literal["and", "or"], e
         pytest.param("", id="artcl_all"),
     ],
 )
-def test_nested_filter_one2many(query_example: Callable[[str], Any], filter_author: str, filter_article: str) -> None:
+def test_nested_filter_one2many(query_example: QueryCallable, filter_author: str, filter_article: str) -> None:
     data = query_example(
         f"""
         author{filter_author} {{
@@ -94,7 +96,7 @@ def test_nested_filter_one2many(query_example: Callable[[str], Any], filter_auth
         assert article_titles == all_article_titles
 
 
-def test_nested_filter_many2one(query_example: Callable[[str], Any]) -> None:
+def test_nested_filter_many2one(query_example: QueryCallable) -> None:
     data = query_example(
         """
         article(where: { author: { name: { _in: ["Lundth"] } } }) {
@@ -106,7 +108,7 @@ def test_nested_filter_many2one(query_example: Callable[[str], Any]) -> None:
     assert article_titles == {"Lundth bad"}
 
 
-def test_nested_filter_many2many(query_example: Callable[[str], Any]) -> None:
+def test_nested_filter_many2many(query_example: QueryCallable) -> None:
     data = query_example(
         """
         article(where: { tags: { name: { _eq: "Politics" } } }) {
@@ -125,7 +127,7 @@ def test_nested_filter_many2many(query_example: Callable[[str], Any]) -> None:
         pytest.param("or", {"Felicitas", "Bjørk", "Lundth"}, id="or"),
     ],
 )
-def test_nested_and_or(query_example: Callable[[str], Any], op: Literal["and", "or"], expected: set[str]) -> None:
+def test_nested_and_or(query_example: QueryCallable, op: Literal["and", "or"], expected: set[str]) -> None:
     has_good = '{ articles: { title: { _like: "%good" } } }'
     has_bad = '{ articles: { title: { _like: "%bad" } } }'
     condition = f"{{ _{op}: [{has_good}, {has_bad}] }}"
