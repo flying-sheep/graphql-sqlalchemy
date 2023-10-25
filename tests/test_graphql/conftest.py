@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Callable, Generator
+from textwrap import indent
 from typing import Any
 
 import pytest
@@ -90,9 +91,8 @@ def example_session(db_engine: Engine, db_session: Session) -> Generator[Session
 
 
 @pytest.fixture()
-def query_example(example_session: Session, gql_schema: GraphQLSchema) -> Callable[[str], dict[str, Any]]:
-    def query(q: str) -> dict[str, Any]:
-        source = f"query {{ {q} }}"
+def graphql_example(example_session: Session, gql_schema: GraphQLSchema) -> Callable[[str], dict[str, Any]]:
+    def graphql(source: str) -> dict[str, Any]:
         result = graphql_sync(gql_schema, source, context_value={"session": example_session})
         if example_session._transaction:
             # TODO: make unnecessary
@@ -102,4 +102,20 @@ def query_example(example_session: Session, gql_schema: GraphQLSchema) -> Callab
         assert result.data is not None
         return result.data
 
+    return graphql
+
+
+@pytest.fixture()
+def query_example(graphql_example: Callable[[str], dict[str, Any]]) -> Callable[[str], dict[str, Any]]:
+    def query(source: str) -> dict[str, Any]:
+        return graphql_example(f"query {{\n{indent(source, '    ')}\n}}")
+
     return query
+
+
+@pytest.fixture()
+def mutation_example(graphql_example: Callable[[str], dict[str, Any]]) -> Callable[[str], dict[str, Any]]:
+    def mutation(source: str) -> dict[str, Any]:
+        return graphql_example(f"mutation {{\n{indent(source, '    ')}\n}}")
+
+    return mutation
