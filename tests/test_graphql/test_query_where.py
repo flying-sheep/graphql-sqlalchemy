@@ -49,7 +49,7 @@ def test_and_or(query_example: QueryCallable, op: Literal["and", "or"], expected
     is_feli = '{ name: { _eq: "Felicitas" } }'
     is_lundth = '{ name: { _eq: "Lundth" } }'
     condition = f"{{ _{op}: [{is_feli}, {is_lundth}] }}"
-    data = query_example(f"author(where: {condition}) {{ id name }}")
+    data = query_example(f"author(where: {condition}) {{ name }}")
     author_names = {author["name"] for author in data["author"]}
     assert author_names == expected
 
@@ -72,9 +72,9 @@ def test_nested_filter_one2many(query_example: QueryCallable, filter_author: str
     data = query_example(
         f"""
         author{filter_author} {{
-            id name
+            name
             articles{filter_article} {{
-                id title rating
+                title rating
             }}
         }}
         """
@@ -100,7 +100,7 @@ def test_nested_filter_many2one(query_example: QueryCallable) -> None:
     data = query_example(
         """
         article(where: { author: { name: { _in: ["Lundth"] } } }) {
-            id title rating
+            title rating
         }
         """
     )
@@ -112,7 +112,7 @@ def test_nested_filter_many2many(query_example: QueryCallable) -> None:
     data = query_example(
         """
         article(where: { tags: { name: { _eq: "Politics" } } }) {
-            id title rating
+            title rating
         }
         """
     )
@@ -131,6 +131,6 @@ def test_nested_and_or(query_example: QueryCallable, op: Literal["and", "or"], e
     has_good = '{ articles: { title: { _like: "%good" } } }'
     has_bad = '{ articles: { title: { _like: "%bad" } } }'
     condition = f"{{ _{op}: [{has_good}, {has_bad}] }}"
-    data = query_example(f"author(where: {condition}) {{ id name }}")
+    data = query_example(f"author(where: {condition}) {{ name }}")
     author_names = {author["name"] for author in data["author"]}
     assert author_names == expected

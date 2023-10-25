@@ -14,5 +14,5 @@ def test_all(query_example: QueryCallable) -> None:
 
 
 def test_get_by_pk(query_example: QueryCallable) -> None:
-    data = query_example("author_by_pk(id: 1) { name }")
+    data = query_example('author_by_pk(name: "Felicitas") { name }')
     assert data["author_by_pk"] == {"name": "Felicitas"}

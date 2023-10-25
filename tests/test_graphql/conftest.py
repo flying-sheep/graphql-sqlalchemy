@@ -22,23 +22,21 @@ class Base(DeclarativeBase):
 article_tag_association = Table(
     "article_tag",
     Base.metadata,
-    Column("article_id", ForeignKey("article.id"), primary_key=True),
-    Column("tag_id", ForeignKey("tag.id"), primary_key=True),
+    Column("article_title", ForeignKey("article.title"), primary_key=True),
+    Column("tag_name", ForeignKey("tag.name"), primary_key=True),
 )
 
 
 class Author(Base):
     __tablename__ = "author"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str]
+    name: Mapped[str] = mapped_column(primary_key=True)
     articles: Mapped[list[Article]] = relationship(back_populates="author")
 
 
 class Article(Base):
     __tablename__ = "article"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    title: Mapped[str]
-    author_id: Mapped[int] = mapped_column(ForeignKey("author.id"))
+    title: Mapped[str] = mapped_column(primary_key=True)
+    author_id: Mapped[int] = mapped_column(ForeignKey("author.name"))
     author: Mapped[Author] = relationship(back_populates="articles")
     rating: Mapped[int]
     tags: Mapped[list[Tag]] = relationship(back_populates="articles", secondary=article_tag_association)
@@ -46,8 +44,7 @@ class Article(Base):
 
 class Tag(Base):
     __tablename__ = "tag"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str]
+    name: Mapped[str] = mapped_column(primary_key=True)
     articles: Mapped[list[Article]] = relationship(back_populates="tags", secondary=article_tag_association)
 
 
