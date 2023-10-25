@@ -58,18 +58,23 @@ def test_delete_by_pk(mutation_example: MutationCallable, query_example: QueryCa
     assert article_titles == {"Bjørk good"}
 
 
+def test_delete_by_pk_fail(mutation_example: MutationCallable) -> None:
+    mut_data = mutation_example('delete_article_by_pk(title: "Nonexistant") { title }')
+    assert mut_data["delete_article_by_pk"] is None
+
+
 def test_delete_many(mutation_example: MutationCallable, query_example: QueryCallable) -> None:
     mut_data = mutation_example(
         """
         delete_article(
-            where: { author: { name: { _eq: "Lundth" } } }
+            where: { rating: { _lt: 2 } }
         ) {
             returning { title }
         }
         """
     )
-    assert mut_data["delete_article"] == {"title": "Lundth bad"}
+    assert mut_data["delete_article"]["returning"] == [{"title": "Lundth bad"}]
 
     q_data = query_example("article { title author { name } }")
     article_titles = {article["title"] for article in q_data["article"] if article["author"]["name"] == "Bjørk"}
-    assert article_titles == {"Bjørk good"}
+    assert article_titles == {"Bjørk good", "Bjørk bad"}

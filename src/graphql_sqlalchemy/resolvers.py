@@ -283,11 +283,12 @@ def make_delete_resolver(model: type[DeclarativeBase]) -> Callable[..., InsDel]:
     ) -> InsDel:
         session = info.context["session"]
         deletion = filter_selection(model, delete(model).returning(model), where=where)
-        result = session.execute(deletion)
-        rows = result.scalars().all()
+        result = session.execute(deletion, execution_options=dict(is_delete_using=True))
+        objs = result.scalars().all()
+        for obj in objs:  # allow accessing attributes after committing
+            session.expunge(obj)
         session_commit(session)
-        # TODO: is len(rows) correct?
-        return InsDel(affected_rows=len(rows), returning=rows)
+        return InsDel(affected_rows=len(objs), returning=objs)
 
     return resolver
 
