@@ -111,10 +111,17 @@ def test_all(query_example: Callable[[str], Any], filt: str) -> None:
     assert author_names == {"Felicitas", "Bjørk", "Lundth"}
 
 
-def test_simple_filter(query_example: Callable[[str], Any]) -> None:
-    data = query_example("article(where: { rating: { _gte: 4 } }) { title }")
+@pytest.mark.parametrize(
+    ("condition", "expected"),
+    [
+        ("rating: { _gte: 4 }", {"Felicitas good", "Felicitas better", "Bjørk good"}),
+        ("_not: { rating: { _gt: 3 } }", {"Bjørk bad", "Lundth bad"}),
+    ],
+)
+def test_simple_filter(query_example: Callable[[str], Any], condition: str, expected: set[str]) -> None:
+    data = query_example(f"article(where: {{ {condition} }}) {{ title }}")
     article_titles = {article["title"] for article in data["article"]}
-    assert article_titles == {"Felicitas good", "Felicitas better", "Bjørk good"}
+    assert article_titles == expected
 
 
 @pytest.mark.parametrize("op", [None, "and"])
