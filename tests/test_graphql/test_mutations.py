@@ -50,5 +50,6 @@ def test_insert_many(mutation_example: MutationCallable, query_example: QueryCal
     assert data["insert_author"] == expected
 
     q_data = query_example("author { name }")
+    # check not only that Lisa is there but also that there’s no two Bjørks somehow
     author_names = sorted(author["name"] for author in q_data["author"])
     assert author_names == ["Bjørk", "Felicitas", "Lisa", "Lundth"]
