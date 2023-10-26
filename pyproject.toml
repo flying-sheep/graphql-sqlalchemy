@@ -27,11 +27,16 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+asyncio = [
+    "SQLAlchemy[asyncio]",
+]
 test = [
     "pytest>=3.4",
     "pytest-cov>=2.9.0",
     "pytest-describe>=1.0.0",
     "exceptiongroup; python_version < '3.11'",
+    "SQLAlchemy[asyncio]",
+    "aiosqlite",
 ]
 docs = [
     "pygments-graphql>=1.0.0",
