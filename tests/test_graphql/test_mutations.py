@@ -70,11 +70,51 @@ def test_delete_many(mutation_example: MutationCallable, query_example: QueryCal
             where: { rating: { _lt: 2 } }
         ) {
             returning { title }
+            affected_rows
         }
         """
     )
-    assert mut_data["delete_article"]["returning"] == [{"title": "Lundth bad"}]
+    expected = {
+        "returning": [{"title": "Lundth bad"}],
+        "affected_rows": 1,
+    }
+    assert mut_data["delete_article"] == expected
 
     q_data = query_example("article { title author { name } }")
     article_titles = {article["title"] for article in q_data["article"] if article["author"]["name"] == "Bjørk"}
     assert article_titles == {"Bjørk good", "Bjørk bad"}
+
+
+def test_update_by_pk(mutation_example: MutationCallable, query_example: QueryCallable) -> None:
+    mut_data = mutation_example('update_author_by_pk(name: "Bjørk", _set: { name: "Brünhilde" }) { name }')
+    assert mut_data["update_author_by_pk"] == {"name": "Brünhilde"}
+
+    q_data = query_example("author { name }")
+    all_authors = {author["name"] for author in q_data["author"]}
+    assert all_authors == {"Brünhilde", "Felicitas", "Lundth"}
+
+
+def test_update_many(mutation_example: MutationCallable, query_example: QueryCallable) -> None:
+    mut_data = mutation_example(
+        """
+        update_article(
+            where: { rating: { _lte: 2 } }
+            _inc: { rating: 1 }
+        ) {
+            returning { title rating }
+            affected_rows
+        }
+        """
+    )
+    expected = {
+        "returning": [
+            {"title": "Bjørk bad", "rating": 3},
+            {"title": "Lundth bad", "rating": 2},
+        ],
+        "affected_rows": 2,
+    }
+    assert mut_data["update_article"] == expected
+
+    q_data = query_example("article { rating }")
+    all_ratings = {article["rating"] for article in q_data["article"]}
+    assert all_ratings == {2, 3, 4, 5}

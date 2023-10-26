@@ -57,7 +57,7 @@ features = ["test"]
 [tool.hatch.envs.test.scripts]
 run = "pytest -v {args}"
 cov = "pytest -v --cov-report=term-missing --cov-report=xml --cov=graphql_sqlalchemy {args}"
-watch = "ptw . --cov-report=xml --cov=graphql_sqlalchemy"
+watch = "ptw . -vv --cov-report=xml --cov=graphql_sqlalchemy {args}"
 
 [tool.hatch.envs.docs]
 features = ["docs"]

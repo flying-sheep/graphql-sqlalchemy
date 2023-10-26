@@ -242,6 +242,7 @@ def make_insert_resolver(model: type[DeclarativeBase]) -> Callable[..., InsDel]:
     def resolver(
         _root: None,
         info: ResolveInfo,
+        *,
         objects: list[dict[str, Any]],
         on_conflict: dict[str, Any] | None = None,
     ) -> InsDel:
@@ -263,6 +264,7 @@ def make_insert_one_resolver(model: type[DeclarativeBase]) -> Callable[..., Decl
     def resolver(
         _root: None,
         info: ResolveInfo,
+        *,
         object: dict[str, Any],
         on_conflict: dict[str, Any] | None = None,
     ) -> DeclarativeBase:
@@ -279,6 +281,7 @@ def make_delete_resolver(model: type[DeclarativeBase]) -> Callable[..., InsDel]:
     def resolver(
         _root: None,
         info: ResolveInfo,
+        *,
         where: Mapping[str, Any] = MappingProxyType({}),
     ) -> InsDel:
         session = info.context["session"]
@@ -311,8 +314,9 @@ def make_delete_by_pk_resolver(model: type[DeclarativeBase]) -> Callable[..., De
 def update_selection(
     model: type[DeclarativeBase],
     selection: ReturningUpdate[tuple[DeclarativeBase]],
-    _set: dict[str, Any] | None = None,
-    _inc: dict[str, Any] | None = None,
+    *,
+    _set: dict[str, Any] | None,
+    _inc: dict[str, Any] | None,
 ) -> ReturningUpdate[tuple[DeclarativeBase]]:
     if _inc:
         to_increment = {}
@@ -331,13 +335,14 @@ def make_update_resolver(model: type[DeclarativeBase]) -> Callable[..., InsDel]:
     def resolver(
         _root: None,
         info: ResolveInfo,
+        *,
         where: dict[str, Any],
-        _set: dict[str, Any] | None,
-        _inc: dict[str, Any] | None,
+        _set: dict[str, Any] | None = None,
+        _inc: dict[str, Any] | None = None,
     ) -> InsDel:
         session = info.context["session"]
         selection = filter_selection(model, update(model).returning(model), where=where)
-        selection = update_selection(model, selection, _set, _inc)
+        selection = update_selection(model, selection, _set=_set, _inc=_inc)
         result = session.execute(selection).scalars().all()
         session_commit(session)
         # TODO: is len(result) correct?
@@ -350,13 +355,14 @@ def make_update_by_pk_resolver(model: type[DeclarativeBase]) -> Callable[..., De
     def resolver(
         _root: None,
         info: ResolveInfo,
-        _set: dict[str, Any] | None,
-        _inc: dict[str, Any] | None,
+        *,
+        _set: dict[str, Any] | None = None,
+        _inc: dict[str, Any] | None = None,
         **pk_columns: dict[str, Any],
     ) -> DeclarativeBase | None:
         session = info.context["session"]
         selection = update(model).returning(model).filter_by(**pk_columns)
-        selection = update_selection(model, selection, _set, _inc)
+        selection = update_selection(model, selection, _set=_set, _inc=_inc)
         result = session.execute(selection).scalar_one_or_none()
         if result is not None:
             session_commit(session)

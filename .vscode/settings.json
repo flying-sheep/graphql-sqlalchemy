@@ -13,7 +13,12 @@
     },
   },
   "python.analysis.typeCheckingMode": "basic",
-  "python.testing.pytestArgs": ["--color=yes", "-vv"],
+  "python.testing.pytestArgs": [
+    "--color=yes",
+    "--cov=graphql_sqlalchemy",
+    "--cov-report=xml",
+    "-vv",
+  ],
   "python.testing.unittestEnabled": false,
   "python.testing.pytestEnabled": true,
   "python.terminal.activateEnvironment": false,
