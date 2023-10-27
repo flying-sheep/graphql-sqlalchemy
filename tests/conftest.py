@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from asyncio import current_task, run
-from collections.abc import AsyncGenerator, Generator
+from typing import TYPE_CHECKING
 
 import pytest
 from sqlalchemy import Engine, create_engine
@@ -13,6 +13,9 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 from sqlalchemy.orm import Session, scoped_session, sessionmaker
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator, Generator
 
 
 @pytest.fixture(scope="session", params=[True, False], ids=["async", "sync"])
@@ -53,7 +56,5 @@ async def db_session(
 
     if isinstance(session, AsyncSession):
         await session.rollback()
-        await session.close()
     else:
         session.rollback()
-        session.close()

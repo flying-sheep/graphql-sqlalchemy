@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from sqlalchemy import Float, Integer, Table
-from sqlalchemy.orm import DeclarativeBase, InstrumentedAttribute, Mapper, RelationshipProperty
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import DeclarativeBase, InstrumentedAttribute, Mapper, RelationshipProperty
 
 
 def get_table(model: type[DeclarativeBase]) -> Table:

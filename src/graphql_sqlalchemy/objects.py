@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from graphql import (
     GraphQLField,
     GraphQLFieldMap,
@@ -16,7 +18,9 @@ from .graphql_types import get_graphql_type_from_column
 from .helpers import get_relationships, get_table
 from .names import get_field_name, get_table_name
 from .resolvers import make_field_resolver, make_many_resolver
-from .types import Inputs, Objects
+
+if TYPE_CHECKING:
+    from .types import Inputs, Objects
 
 
 def build_object_type(model: type[DeclarativeBase], objects: Objects, inputs: Inputs) -> GraphQLObjectType:

@@ -99,6 +99,8 @@ select = [
     "I",
     "UP",
     "PT",
+    "ASYNC",
+    "TCH",
 ]
 [tool.ruff.isort]
 required-imports = ["from __future__ import annotations"]

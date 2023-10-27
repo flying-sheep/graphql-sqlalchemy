@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import sys
 from asyncio import run
-from collections.abc import AsyncGenerator, Callable
 from textwrap import indent
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from graphql import ExecutionResult, GraphQLSchema, graphql, graphql_sync
@@ -12,6 +11,9 @@ from graphql_sqlalchemy.schema import build_schema
 from sqlalchemy import Column, Engine, ForeignKey, Table
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, registry, relationship
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator, Callable
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
@@ -130,7 +132,7 @@ def graphql_example(
             result = run(gql_async(example_session))
         else:
             with example_session.begin():
-                result = graphql_sync(gql_schema, source, context_value={"session": example_session})
+                result = graphql_sync(gql_schema, source, context_value={"session": example_session}, check_sync=True)
                 raise_if_errors(result)
 
         assert not example_session.in_transaction()

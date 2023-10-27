@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from graphql import (
     GraphQLBoolean,
     GraphQLFloat,
@@ -12,7 +14,9 @@ from graphql import (
 )
 from sqlalchemy import ARRAY, Boolean, Float, Integer
 from sqlalchemy.dialects.postgresql import ARRAY as PGARRAY
-from sqlalchemy.types import TypeEngine
+
+if TYPE_CHECKING:
+    from sqlalchemy.types import TypeEngine
 
 
 def get_graphql_type_from_column(column_type: TypeEngine) -> GraphQLScalarType | GraphQLList:

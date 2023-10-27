@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 from functools import singledispatch
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from graphql import GraphQLList, GraphQLScalarType
 from sqlalchemy import Column
-from sqlalchemy.orm import DeclarativeBase
 
 from .helpers import get_table
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import DeclarativeBase
 
 FIELD_NAMES = {
     "by_pk": "{}_by_pk",

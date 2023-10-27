@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from typing import TypedDict
+from typing import TYPE_CHECKING, TypedDict
 
 from graphql import GraphQLInputObjectType, GraphQLObjectType, GraphQLResolveInfo
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Session
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.orm import Session
 
 Objects = dict[str, GraphQLObjectType]
 Inputs = dict[str, GraphQLInputObjectType]

@@ -32,7 +32,7 @@ def test_insert_many(mutation_example: MutationCallable, query_example: QueryCal
         }}
         """
     if not merge:
-        with pytest.raises(GraphQLError, match=r"New instance <Author.*conflicts"):
+        with pytest.raises(GraphQLError, match=r"New instance <Author.*conflicts|UNIQUE constraint failed"):
             mutation_example(mut)
         return
 

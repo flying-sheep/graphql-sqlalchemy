@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from graphql import GraphQLField, GraphQLFieldMap, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLSchema
-from sqlalchemy.orm import DeclarativeBase
 
 from .args import (
     make_args,
@@ -25,7 +26,11 @@ from .resolvers import (
     make_update_by_pk_resolver,
     make_update_resolver,
 )
-from .types import Inputs, Objects
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import DeclarativeBase
+
+    from .types import Inputs, Objects
 
 
 def build_queries(model: type[DeclarativeBase], objects: Objects, queries: GraphQLFieldMap, inputs: Inputs) -> None:
