@@ -207,9 +207,18 @@ def resolve_filtered(
     return selection
 
 
-def make_field_resolver(field_name: str) -> Callable[..., Any]:
-    def field_resolver(root: DeclarativeBase, info: ResolveInfo) -> Any:
-        return getattr(root, field_name)
+def make_field_resolver(field_name: str) -> Callable[..., AwaitableOrValue[Any]]:
+    def field_resolver(root: DeclarativeBase, info: ResolveInfo) -> AwaitableOrValue[Any]:
+        session = info.context["session"]
+
+        if isinstance(session, Session):
+            return getattr(root, field_name)
+
+        async def get_field() -> Any:
+            await session.refresh(root, attribute_names=[field_name])
+            return getattr(root, field_name)
+
+        return get_field()
 
     return field_resolver
 
