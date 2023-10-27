@@ -34,6 +34,7 @@ test = [
     "pytest>=3.4",
     "pytest-cov>=2.9.0",
     "pytest-describe>=1.0.0",
+    "pytest-asyncio",
     "exceptiongroup; python_version < '3.11'",
     "SQLAlchemy[asyncio]",
     "aiosqlite",
@@ -71,6 +72,7 @@ build = "sphinx-build -M html docs/source docs/build"
 
 [tool.pytest.ini_options]
 xfail_strict = true
+asyncio_mode = "auto"
 addopts = [
     '--import-mode=importlib',
     '--strict-markers',

@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import sys
 from asyncio import run
-from collections.abc import Callable, Coroutine, Generator
+from collections.abc import AsyncGenerator, Callable
 from textwrap import indent
 from typing import Any
 
 import pytest
-from graphql import GraphQLSchema, graphql, graphql_sync
+from graphql import ExecutionResult, GraphQLSchema, graphql, graphql_sync
 from graphql_sqlalchemy.schema import build_schema
 from sqlalchemy import Column, Engine, ForeignKey, Table
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
@@ -15,12 +15,6 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, regi
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
-
-
-# TODO: deduplicate this
-def maybe_run_coro(coro: Coroutine[Any, Any, None] | None) -> None:
-    if coro is not None:
-        run(coro)
 
 
 class Base(DeclarativeBase):
@@ -88,38 +82,36 @@ def gql_schema() -> GraphQLSchema:
 
 
 @pytest.fixture()
-def example_session(
+async def example_session(
     db_engine: Engine | AsyncEngine, db_session: Session | AsyncSession
-) -> Generator[Session | AsyncSession, None, None]:
+) -> AsyncGenerator[Session | AsyncSession, None]:
     if isinstance(db_engine, AsyncEngine):
-        assert isinstance(db_session, AsyncSession)
-
-        async def init() -> None:
-            async with db_engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
-            async with db_session.begin():
-                add_example_data(db_session)
-                await db_session.commit()
-
-        run(init())
-
-        yield db_session
-
-        async def cleanup() -> None:
-            async with db_engine.begin() as conn:
-                await conn.run_sync(Base.metadata.drop_all)
-
-        run(cleanup())
+        async with db_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
     else:
-        assert isinstance(db_session, Session)
         Base.metadata.create_all(bind=db_engine)
+
+    if isinstance(db_session, AsyncSession):
+        async with db_session.begin():
+            add_example_data(db_session)
+            await db_session.commit()
+    else:
         with db_session.begin():
             add_example_data(db_session)
             db_session.commit()
 
-        yield db_session
+    yield db_session
 
+    if isinstance(db_engine, AsyncEngine):
+        async with db_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+    else:
         Base.metadata.drop_all(bind=db_engine)
+
+
+def raise_if_errors(result: ExecutionResult) -> None:
+    if result.errors:
+        raise result.errors[0] if len(result.errors) == 1 else ExceptionGroup("Invalid Query", result.errors)
 
 
 @pytest.fixture()
@@ -127,15 +119,21 @@ def graphql_example(
     example_session: Session | AsyncSession, gql_schema: GraphQLSchema
 ) -> Callable[[str], dict[str, Any]]:
     def graphql_(source: str) -> dict[str, Any]:
-        gql = graphql if isinstance(example_session, Session) else graphql_sync
-        result = gql(gql_schema, source, context_value={"session": example_session})
-        if isinstance(result, Coroutine):
-            result = run(result)
-        if isinstance(example_session, Session) and example_session._transaction:
-            # TODO: make unnecessary
-            example_session._transaction.close()
-        if result.errors:
-            raise result.errors[0] if len(result.errors) == 1 else ExceptionGroup("Invalid Query", result.errors)
+        async def gql_async(session: AsyncSession) -> ExecutionResult:
+            assert isinstance(session, AsyncSession)
+            async with session.begin():
+                result = await graphql(gql_schema, source, context_value={"session": session})
+                raise_if_errors(result)
+                return result
+
+        if isinstance(example_session, AsyncSession):
+            result = run(gql_async(example_session))
+        else:
+            with example_session.begin():
+                result = graphql_sync(gql_schema, source, context_value={"session": example_session})
+                raise_if_errors(result)
+
+        assert not example_session.in_transaction()
         assert result.data is not None
         return result.data
 

@@ -8,7 +8,7 @@ QueryCallable = Callable[[str], dict[str, Any]]
 
 
 def test_all(query_example: QueryCallable) -> None:
-    data = query_example("author(where: { }) { name }")
+    data = query_example("author { name }")
     author_names = {author["name"] for author in data["author"]}
     assert author_names == {"Felicitas", "Bjørk", "Lundth"}
 

@@ -6,7 +6,9 @@ from itertools import starmap
 from types import MappingProxyType
 from typing import Any, Callable, TypedDict, TypeVar
 
-from sqlalchemy import ColumnExpressionArgument, Select, and_, delete, not_, or_, select, true, update
+from graphql.pyutils import AwaitableOrValue
+from sqlalchemy import ColumnExpressionArgument, ScalarResult, Select, and_, delete, not_, or_, select, true, update
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import DeclarativeBase, InstrumentedAttribute, Session, interfaces
 from sqlalchemy.sql.dml import ReturningDelete, ReturningUpdate
 
@@ -17,6 +19,28 @@ from .types import ResolveInfo
 class InsDel(TypedDict):
     affected_rows: int
     returning: Sequence[DeclarativeBase]
+
+
+T = TypeVar("T")
+
+
+# Async helpers
+
+
+def all_scalars(
+    session: Session | AsyncSession, selection: Select[tuple[DeclarativeBase]]
+) -> AwaitableOrValue[Sequence[DeclarativeBase]]:
+    result = session.scalars(selection)
+    if isinstance(result, ScalarResult):
+        return result.all()
+
+    async def get_all() -> Sequence[DeclarativeBase]:
+        return (await result).all()
+
+    return get_all()
+
+
+# Start
 
 
 def get_bool_operation(
@@ -154,7 +178,7 @@ def resolve_filtered(
 
 
 def make_field_resolver(field_name: str) -> Callable[..., Any]:
-    def field_resolver(root: DeclarativeBase, _info: ResolveInfo) -> Any:
+    def field_resolver(root: DeclarativeBase, info: ResolveInfo) -> Any:
         return getattr(root, field_name)
 
     return field_resolver
@@ -166,7 +190,9 @@ def pk_filter(instance: DeclarativeBase) -> Generator[ColumnExpressionArgument, 
         yield getattr(model, column.name) == getattr(instance, column.name)
 
 
-def make_many_resolver(field_name: str) -> Callable[..., Sequence[DeclarativeBase]]:
+def make_many_resolver(
+    field_name: str,
+) -> Callable[..., AwaitableOrValue[Sequence[DeclarativeBase]]]:
     def resolver(
         root: DeclarativeBase,
         info: ResolveInfo,
@@ -175,7 +201,7 @@ def make_many_resolver(field_name: str) -> Callable[..., Sequence[DeclarativeBas
         order: list[dict[str, Any]] | None = None,
         limit: int | None = None,
         offset: int | None = None,
-    ) -> Sequence[DeclarativeBase]:
+    ) -> AwaitableOrValue[Sequence[DeclarativeBase]]:
         if all(f is None for f in [where, order, limit, offset]):
             return getattr(root, field_name)
         session = info.context["session"]
@@ -183,12 +209,12 @@ def make_many_resolver(field_name: str) -> Callable[..., Sequence[DeclarativeBas
         field_model = relationship.prop.entity.class_
         selection = select(field_model).select_from(root.__class__).join(relationship).filter(*pk_filter(root))
         selection = resolve_filtered(field_model, selection, where=where or {}, order=order, limit=limit, offset=offset)
-        return session.execute(selection).scalars().all()
+        return all_scalars(session, selection)
 
     return resolver
 
 
-def make_object_resolver(model: type[DeclarativeBase]) -> Callable[..., Sequence[DeclarativeBase]]:
+def make_object_resolver(model: type[DeclarativeBase]) -> Callable[..., AwaitableOrValue[Sequence[DeclarativeBase]]]:
     def resolver(
         _root: None,
         info: ResolveInfo,
@@ -197,16 +223,16 @@ def make_object_resolver(model: type[DeclarativeBase]) -> Callable[..., Sequence
         order: list[dict[str, Any]] | None = None,
         limit: int | None = None,
         offset: int | None = None,
-    ) -> Sequence[DeclarativeBase]:
+    ) -> AwaitableOrValue[Sequence[DeclarativeBase]]:
         session = info.context["session"]
         selection = resolve_filtered(model, where=where, order=order, limit=limit, offset=offset)
-        return session.execute(selection).scalars().all()
+        return all_scalars(session, selection)
 
     return resolver
 
 
-def make_pk_resolver(model: type[DeclarativeBase]) -> Callable[..., DeclarativeBase | None]:
-    def resolver(_root: None, info: ResolveInfo, **kwargs: dict[str, Any]) -> DeclarativeBase:
+def make_pk_resolver(model: type[DeclarativeBase]) -> Callable[..., AwaitableOrValue[DeclarativeBase | None]]:
+    def resolver(_root: None, info: ResolveInfo, **kwargs: dict[str, Any]) -> AwaitableOrValue[DeclarativeBase | None]:
         session = info.context["session"]
         return session.get_one(model, kwargs)
 
@@ -235,6 +261,14 @@ def session_commit(session: Session) -> None:
         session.commit()
     except Exception:
         session.rollback()
+        raise
+
+
+async def session_commit_async(session: AsyncSession) -> None:
+    try:
+        await session.commit()
+    except Exception:
+        await session.rollback()
         raise
 
 

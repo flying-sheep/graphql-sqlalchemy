@@ -18,8 +18,8 @@ def test_all(query_example: QueryCallable) -> None:
 @pytest.mark.parametrize(
     ("condition", "expected"),
     [
-        ("rating: { _gte: 4 }", {"Felicitas good", "Felicitas better", "Bjørk good"}),
-        ("_not: { rating: { _gt: 3 } }", {"Bjørk bad", "Lundth bad"}),
+        pytest.param("rating: { _gte: 4 }", {"Felicitas good", "Felicitas better", "Bjørk good"}, id="gte"),
+        pytest.param("_not: { rating: { _gt: 3 } }", {"Bjørk bad", "Lundth bad"}, id="not_gt"),
     ],
 )
 def test_simple_filter(query_example: QueryCallable, condition: str, expected: set[str]) -> None:
