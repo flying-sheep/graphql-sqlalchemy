@@ -313,36 +313,6 @@ async def _session_add_object_async(session: AsyncSession, instance: Declarative
     return instance
 
 
-@overload
-def session_flush(session: Session) -> None:
-    ...
-
-
-@overload
-def session_flush(session: AsyncSession) -> Awaitable[None]:
-    ...
-
-
-def session_flush(session: Session | AsyncSession) -> AwaitableOrValue[None]:
-    if isinstance(session, AsyncSession):
-        return _session_flush_async(session)
-
-    try:
-        session.flush()
-    except Exception:
-        session.rollback()
-        raise
-    return None
-
-
-async def _session_flush_async(session: AsyncSession) -> None:
-    try:
-        await session.flush()
-    except Exception:
-        await session.rollback()
-        raise
-
-
 def make_insert_resolver(model: type[DeclarativeBase]) -> Callable[..., AwaitableOrValue[InsDel]]:
     def resolver(
         _root: None,
@@ -358,7 +328,7 @@ def make_insert_resolver(model: type[DeclarativeBase]) -> Callable[..., Awaitabl
                 models = [session_add_object(obj, model, session, on_conflict=on_conflict) for obj in objects]
 
             rv = InsDel(affected_rows=len(models), returning=models)
-            session_flush(session)
+            session.flush()
             return rv
 
         async def insert_many() -> InsDel:
@@ -369,7 +339,7 @@ def make_insert_resolver(model: type[DeclarativeBase]) -> Callable[..., Awaitabl
                 )
 
             rv = InsDel(affected_rows=len(models), returning=models)
-            await session_flush(session)
+            await session.flush()
             return rv
 
         return insert_many()
@@ -389,13 +359,13 @@ def make_insert_one_resolver(model: type[DeclarativeBase]) -> Callable[..., Awai
 
         if isinstance(session, Session):
             instance = session_add_object(object, model, session, on_conflict=on_conflict)
-            session_flush(session)
+            session.flush()
             return instance
 
         async def insert_one() -> DeclarativeBase:
             assert isinstance(session, AsyncSession)
             instance = await session_add_object(object, model, session, on_conflict=on_conflict)
-            await session_flush(session)
+            await session.flush()
             return instance
 
         return insert_one()
@@ -416,14 +386,14 @@ def make_delete_resolver(model: type[DeclarativeBase]) -> Callable[..., Awaitabl
         if isinstance(session, Session):
             objs = all_scalars(session, deletion, execution_options=dict(is_delete_using=True))
             rv = InsDel(affected_rows=len(objs), returning=objs)
-            session_flush(session)
+            session.flush()
             return rv
 
         async def delete_many() -> InsDel:
             assert isinstance(session, AsyncSession)
             objs = await all_scalars(session, deletion, execution_options=dict(is_delete_using=True))
             rv = InsDel(affected_rows=len(objs), returning=objs)
-            await session_flush(session)
+            await session.flush()
             return rv
 
         return delete_many()
@@ -441,7 +411,7 @@ def make_delete_by_pk_resolver(model: type[DeclarativeBase]) -> Callable[..., Aw
                 return row
 
             session.delete(row)
-            session_flush(session)
+            session.flush()
             return row
 
         async def delete_row() -> DeclarativeBase | None:
@@ -449,7 +419,7 @@ def make_delete_by_pk_resolver(model: type[DeclarativeBase]) -> Callable[..., Aw
             if row is None:
                 return row
             await session.delete(row)
-            await session_flush(session)
+            await session.flush()
             return row
 
         return delete_row()
@@ -491,12 +461,12 @@ def make_update_resolver(model: type[DeclarativeBase]) -> Callable[..., Awaitabl
         selection = update_selection(model, selection, _set=_set, _inc=_inc)
         if isinstance(session, Session):
             result = all_scalars(session, selection)
-            session_flush(session)
+            session.flush()
             return InsDel(affected_rows=len(result), returning=result)
 
         async def update_many() -> InsDel:
             result = await all_scalars(session, selection)
-            await session_flush(session)
+            await session.flush()
             return InsDel(affected_rows=len(result), returning=result)
 
         return update_many()
@@ -520,7 +490,7 @@ def make_update_by_pk_resolver(model: type[DeclarativeBase]) -> Callable[..., Aw
             result = session.execute(selection).scalar_one_or_none()
             if result is None:
                 return None
-            session_flush(session)
+            session.flush()
             return result
 
         async def update_one() -> DeclarativeBase | None:
@@ -528,7 +498,7 @@ def make_update_by_pk_resolver(model: type[DeclarativeBase]) -> Callable[..., Aw
             result = (await session.execute(selection)).scalar_one_or_none()
             if result is None:
                 return None
-            await session_flush(session)
+            await session.flush()
             return result
 
         return update_one()
