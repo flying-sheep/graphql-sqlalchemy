@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from asyncio import gather
+from collections.abc import Sequence
 from functools import partial
 from itertools import starmap
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Callable, TypedDict, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Callable, TypedDict, TypeVar, cast, overload
 
 from sqlalchemy import ColumnExpressionArgument, ScalarResult, Select, and_, delete, not_, or_, select, true, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,7 +15,7 @@ from sqlalchemy.sql.dml import ReturningDelete, ReturningUpdate
 from .helpers import get_mapper
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Generator, Mapping, Sequence
+    from collections.abc import Awaitable, Generator, Mapping
 
     from graphql.pyutils import AwaitableOrValue
     from sqlalchemy.orm._typing import OrmExecuteOptionsParameter
@@ -81,10 +82,10 @@ def all_scalars(
 
 
 def get_bool_operation(
-    model_property: InstrumentedAttribute, operator: str, value: Any
+    model_property: InstrumentedAttribute[Any], operator: str, value: Any
 ) -> ColumnExpressionArgument[bool]:
     if operator == "_eq":
-        return model_property == value
+        return model_property == value  # type: ignore[no-any-return]
 
     if operator == "_in":
         return model_property.in_(value)
@@ -96,7 +97,7 @@ def get_bool_operation(
         return model_property.like(value)
 
     if operator == "_neq":
-        return model_property != value
+        return model_property != value  # type: ignore[no-any-return]
 
     if operator == "_nin":
         return model_property.notin_(value)
@@ -105,16 +106,16 @@ def get_bool_operation(
         return model_property.notlike(value)
 
     if operator == "_lt":
-        return model_property < value
+        return model_property < value  # type: ignore[no-any-return]
 
     if operator == "_gt":
-        return model_property > value
+        return model_property > value  # type: ignore[no-any-return]
 
     if operator == "_lte":
-        return model_property <= value
+        return model_property <= value  # type: ignore[no-any-return]
 
     if operator == "_gte":
-        return model_property >= value
+        return model_property >= value  # type: ignore[no-any-return]
 
     raise Exception("Invalid operator")
 
@@ -139,7 +140,7 @@ def get_filter_operation(model: type[DeclarativeBase], where: Mapping[str, Any])
     if name == "_and":
         return and_(*map(partial_filter, exprs))
 
-    model_property: InstrumentedAttribute = getattr(model, name)
+    model_property: InstrumentedAttribute[Any] = getattr(model, name)
 
     # relationships
     if relationship := get_mapper(model).relationships.get(name):
@@ -165,7 +166,7 @@ def filter_selection(
 
 
 def order_selection(
-    model: type[DeclarativeBase] | InstrumentedAttribute,
+    model: type[DeclarativeBase] | InstrumentedAttribute[Any],
     selection: Select[tuple[DeclarativeBase]] | None = None,
     order: list[dict[str, Any]] | None = None,
 ) -> Select[tuple[DeclarativeBase]]:
@@ -213,7 +214,7 @@ def make_field_resolver(field_name: str) -> Callable[..., Any]:
     return field_resolver
 
 
-def pk_filter(instance: DeclarativeBase) -> Generator[ColumnExpressionArgument, None, None]:
+def pk_filter(instance: DeclarativeBase) -> Generator[ColumnExpressionArgument[Any], None, None]:
     model = instance.__class__
     for column in model.__table__.primary_key:
         yield getattr(model, column.name) == getattr(instance, column.name)
@@ -232,9 +233,9 @@ def make_many_resolver(
         offset: int | None = None,
     ) -> AwaitableOrValue[Sequence[DeclarativeBase]]:
         if all(f is None for f in [where, order, limit, offset]):
-            return getattr(root, field_name)
+            return cast(Sequence[Any], getattr(root, field_name))
         session = info.context["session"]
-        relationship: InstrumentedAttribute = getattr(root.__class__, field_name)
+        relationship: InstrumentedAttribute[Any] = getattr(root.__class__, field_name)
         field_model = relationship.prop.entity.class_
         selection = select(field_model).select_from(root.__class__).join(relationship).filter(*pk_filter(root))
         selection = resolve_filtered(field_model, selection, where=where or {}, order=order, limit=limit, offset=offset)
@@ -312,38 +313,34 @@ async def _session_add_object_async(session: AsyncSession, instance: Declarative
     return instance
 
 
-T = TypeVar("T")
-
-
 @overload
-def session_flush(session: Session, rv: T = None) -> T:
+def session_flush(session: Session) -> None:
     ...
 
 
 @overload
-def session_flush(session: AsyncSession, rv: T = None) -> Awaitable[T]:
+def session_flush(session: AsyncSession) -> Awaitable[None]:
     ...
 
 
-def session_flush(session: Session | AsyncSession, rv: T = None) -> AwaitableOrValue[T]:
+def session_flush(session: Session | AsyncSession) -> AwaitableOrValue[None]:
     if isinstance(session, AsyncSession):
-        return _session_flush_async(session, rv)
+        return _session_flush_async(session)
 
     try:
         session.flush()
     except Exception:
         session.rollback()
         raise
-    return rv
+    return None
 
 
-async def _session_flush_async(session: AsyncSession, rv: T) -> T:
+async def _session_flush_async(session: AsyncSession) -> None:
     try:
         await session.flush()
     except Exception:
         await session.rollback()
         raise
-    return rv
 
 
 def make_insert_resolver(model: type[DeclarativeBase]) -> Callable[..., AwaitableOrValue[InsDel]]:
@@ -361,7 +358,8 @@ def make_insert_resolver(model: type[DeclarativeBase]) -> Callable[..., Awaitabl
                 models = [session_add_object(obj, model, session, on_conflict=on_conflict) for obj in objects]
 
             rv = InsDel(affected_rows=len(models), returning=models)
-            return session_flush(session, rv)
+            session_flush(session)
+            return rv
 
         async def insert_many() -> InsDel:
             assert isinstance(session, AsyncSession)
@@ -371,7 +369,8 @@ def make_insert_resolver(model: type[DeclarativeBase]) -> Callable[..., Awaitabl
                 )
 
             rv = InsDel(affected_rows=len(models), returning=models)
-            return await session_flush(session, rv)
+            await session_flush(session)
+            return rv
 
         return insert_many()
 
@@ -388,8 +387,18 @@ def make_insert_one_resolver(model: type[DeclarativeBase]) -> Callable[..., Awai
     ) -> AwaitableOrValue[DeclarativeBase]:
         session = info.context["session"]
 
-        instance = session_add_object(object, model, session, on_conflict=on_conflict)
-        return session_flush(session, instance)
+        if isinstance(session, Session):
+            instance = session_add_object(object, model, session, on_conflict=on_conflict)
+            session_flush(session)
+            return instance
+
+        async def insert_one() -> DeclarativeBase:
+            assert isinstance(session, AsyncSession)
+            instance = await session_add_object(object, model, session, on_conflict=on_conflict)
+            await session_flush(session)
+            return instance
+
+        return insert_one()
 
     return resolver
 
@@ -407,13 +416,15 @@ def make_delete_resolver(model: type[DeclarativeBase]) -> Callable[..., Awaitabl
         if isinstance(session, Session):
             objs = all_scalars(session, deletion, execution_options=dict(is_delete_using=True))
             rv = InsDel(affected_rows=len(objs), returning=objs)
-            return session_flush(session, rv)
+            session_flush(session)
+            return rv
 
         async def delete_many() -> InsDel:
             assert isinstance(session, AsyncSession)
             objs = await all_scalars(session, deletion, execution_options=dict(is_delete_using=True))
             rv = InsDel(affected_rows=len(objs), returning=objs)
-            return await session_flush(session, rv)
+            await session_flush(session)
+            return rv
 
         return delete_many()
 
@@ -430,14 +441,16 @@ def make_delete_by_pk_resolver(model: type[DeclarativeBase]) -> Callable[..., Aw
                 return row
 
             session.delete(row)
-            return session_flush(session, row)
+            session_flush(session)
+            return row
 
-        async def delete_row():
+        async def delete_row() -> DeclarativeBase | None:
             row = await session.get(model, kwargs)
             if row is None:
                 return row
             await session.delete(row)
-            return await session_flush(session, row)
+            await session_flush(session)
+            return row
 
         return delete_row()
 
@@ -464,7 +477,7 @@ def update_selection(
     return selection
 
 
-def make_update_resolver(model: type[DeclarativeBase]) -> Callable[..., InsDel]:
+def make_update_resolver(model: type[DeclarativeBase]) -> Callable[..., AwaitableOrValue[InsDel]]:
     def resolver(
         _root: None,
         info: ResolveInfo,
@@ -472,19 +485,26 @@ def make_update_resolver(model: type[DeclarativeBase]) -> Callable[..., InsDel]:
         where: dict[str, Any],
         _set: dict[str, Any] | None = None,
         _inc: dict[str, Any] | None = None,
-    ) -> InsDel:
+    ) -> AwaitableOrValue[InsDel]:
         session = info.context["session"]
         selection = filter_selection(model, update(model).returning(model), where=where)
         selection = update_selection(model, selection, _set=_set, _inc=_inc)
-        result = all_scalars(session, selection)
-        session_flush(session)
-        # TODO: is len(result) correct?
-        return InsDel(affected_rows=len(result), returning=result)
+        if isinstance(session, Session):
+            result = all_scalars(session, selection)
+            session_flush(session)
+            return InsDel(affected_rows=len(result), returning=result)
+
+        async def update_many() -> InsDel:
+            result = await all_scalars(session, selection)
+            await session_flush(session)
+            return InsDel(affected_rows=len(result), returning=result)
+
+        return update_many()
 
     return resolver
 
 
-def make_update_by_pk_resolver(model: type[DeclarativeBase]) -> Callable[..., DeclarativeBase | None]:
+def make_update_by_pk_resolver(model: type[DeclarativeBase]) -> Callable[..., AwaitableOrValue[DeclarativeBase | None]]:
     def resolver(
         _root: None,
         info: ResolveInfo,
@@ -492,13 +512,25 @@ def make_update_by_pk_resolver(model: type[DeclarativeBase]) -> Callable[..., De
         _set: dict[str, Any] | None = None,
         _inc: dict[str, Any] | None = None,
         **pk_columns: dict[str, Any],
-    ) -> DeclarativeBase | None:
+    ) -> AwaitableOrValue[DeclarativeBase | None]:
         session = info.context["session"]
         selection = update(model).returning(model).filter_by(**pk_columns)
         selection = update_selection(model, selection, _set=_set, _inc=_inc)
-        result = session.execute(selection).scalar_one_or_none()
-        if result is not None:
+        if isinstance(session, Session):
+            result = session.execute(selection).scalar_one_or_none()
+            if result is None:
+                return None
             session_flush(session)
-        return result
+            return result
+
+        async def update_one() -> DeclarativeBase | None:
+            assert isinstance(session, AsyncSession)
+            result = (await session.execute(selection)).scalar_one_or_none()
+            if result is None:
+                return None
+            await session_flush(session)
+            return result
+
+        return update_one()
 
     return resolver

@@ -35,7 +35,7 @@ def build_object_type(model: type[DeclarativeBase], objects: Objects, inputs: In
             fields[column.name] = GraphQLField(graphql_type, resolve=make_field_resolver(column.name))
 
         for name, relationship in get_relationships(model):
-            [column] = relationship.local_columns
+            [column_elem] = relationship.local_columns
             related_model = relationship.mapper.entity
             object_type: GraphQLOutputType = objects[get_table_name(related_model)]
             is_filterable = relationship.direction in (interfaces.ONETOMANY, interfaces.MANYTOMANY)
@@ -45,7 +45,7 @@ def build_object_type(model: type[DeclarativeBase], objects: Objects, inputs: In
             else:
                 make_resolver = make_field_resolver
 
-            if not column.nullable:
+            if not column_elem.nullable:
                 object_type = GraphQLNonNull(object_type)
 
             fields[name] = GraphQLField(

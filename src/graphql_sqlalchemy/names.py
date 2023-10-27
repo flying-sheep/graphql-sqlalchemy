@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from functools import singledispatch
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from graphql import GraphQLList, GraphQLScalarType
 from sqlalchemy import Column
@@ -41,15 +41,15 @@ def get_table_name(model: type[DeclarativeBase]) -> str:
 
 @singledispatch
 def get_field_name(
-    model: type[DeclarativeBase] | GraphQLScalarType | GraphQLList,
+    model: type[DeclarativeBase] | GraphQLScalarType | GraphQLList[Any],
     field_name: str,
-    column: Column | GraphQLScalarType | GraphQLList | None = None,
+    column: Column[Any] | GraphQLScalarType | GraphQLList[Any] | None = None,
 ) -> str:
     raise NotImplementedError
 
 
 @get_field_name.register(type)
-def _(model: type[DeclarativeBase], field_name: str, column: Column | None = None) -> str:
+def _(model: type[DeclarativeBase], field_name: str, column: Column[Any] | None = None) -> str:
     name = get_table_name(model)
     if isinstance(column, Column) and field_name == "key":
         return FIELD_NAMES[field_name].format(name, column.name)
@@ -58,7 +58,7 @@ def _(model: type[DeclarativeBase], field_name: str, column: Column | None = Non
 
 @get_field_name.register(GraphQLScalarType)
 @get_field_name.register(GraphQLList)
-def _(model: GraphQLScalarType | GraphQLList, field_name: Literal["comparison"]) -> str:
+def _(model: GraphQLScalarType | GraphQLList[Any], field_name: Literal["comparison"]) -> str:
     if isinstance(model, GraphQLList):
         return FIELD_NAMES["arr_comparison"].format(model.of_type.name.lower())
     return FIELD_NAMES[field_name].format(getattr(model, "name").lower())

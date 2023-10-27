@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from graphql import (
     GraphQLBoolean,
@@ -32,7 +32,7 @@ ON_CONFLICT_INPUT = GraphQLInputObjectType(
 )
 
 
-def get_comparison_input_type(column: Column, inputs: Inputs) -> GraphQLInputObjectType:
+def get_comparison_input_type(column: Column[Any], inputs: Inputs) -> GraphQLInputObjectType:
     graphql_type = get_graphql_type_from_column(column.type)
     type_name = get_field_name(graphql_type, "comparison")
 

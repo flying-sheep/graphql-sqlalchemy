@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Float, Integer, Table
 
@@ -14,11 +14,11 @@ def get_table(model: type[DeclarativeBase]) -> Table:
     return model.__table__
 
 
-def get_mapper(model: type[DeclarativeBase] | InstrumentedAttribute) -> Mapper:
+def get_mapper(model: type[DeclarativeBase] | InstrumentedAttribute[Any]) -> Mapper[Any]:
     return model.__mapper__
 
 
-def get_relationships(model: type[DeclarativeBase]) -> list[tuple[str, RelationshipProperty]]:
+def get_relationships(model: type[DeclarativeBase]) -> list[tuple[str, RelationshipProperty[Any]]]:
     return get_mapper(model).relationships.items()
 
 

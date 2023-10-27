@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from asyncio import current_task, run
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import pytest
 from sqlalchemy import Engine, create_engine
@@ -20,11 +20,12 @@ if TYPE_CHECKING:
 
 @pytest.fixture(scope="session", params=[True, False], ids=["async", "sync"])
 def is_async(request: pytest.FixtureRequest) -> bool:
-    return request.param
+    return cast(bool, request.param)
 
 
 @pytest.fixture(scope="session")
 def db_engine(is_async: bool) -> Generator[Engine | AsyncEngine, None, None]:
+    engine: Engine | AsyncEngine
     if is_async:
         engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     else:
