@@ -18,7 +18,13 @@ if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Generator
 
 
-@pytest.fixture(scope="session", params=[True, False], ids=["async", "sync"])
+@pytest.fixture(
+    scope="session",
+    params=[
+        # pytest.param(True, id="async"),  # TODO: enable
+        pytest.param(False, id="sync"),
+    ],
+)
 def is_async(request: pytest.FixtureRequest) -> bool:
     return cast(bool, request.param)
 

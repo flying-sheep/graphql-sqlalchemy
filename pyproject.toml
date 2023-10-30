@@ -15,6 +15,7 @@ classifiers = [
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Libraries",
     "License :: OSI Approved :: MIT License",
+    "Typing :: Typed",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
@@ -86,9 +87,6 @@ strict = true
 explicit_package_bases = true # pytest doesn’t do __init__.py
 no_implicit_optional = true
 disallow_untyped_decorators = false # e.g. pytest.mark.parametrize
-
-[tool.black]
-line-length = 120
 
 [tool.ruff]
 line-length = 120
