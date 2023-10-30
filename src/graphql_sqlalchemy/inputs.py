@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
 from graphql import (
     GraphQLBoolean,
     GraphQLEnumType,
@@ -11,12 +13,15 @@ from graphql import (
     GraphQLString,
 )
 from sqlalchemy import Column, Float, Integer
-from sqlalchemy.orm import DeclarativeBase
 
 from .graphql_types import get_base_comparison_fields, get_graphql_type_from_column, get_string_comparison_fields
 from .helpers import get_relationships, get_table
 from .names import get_field_name
-from .types import Inputs
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import DeclarativeBase
+
+    from .types import Inputs
 
 ORDER_BY_ENUM = GraphQLEnumType("order_by", {"desc": "desc", "asc": "asc"})
 ON_CONFLICT_INPUT = GraphQLInputObjectType(
@@ -27,7 +32,7 @@ ON_CONFLICT_INPUT = GraphQLInputObjectType(
 )
 
 
-def get_comparison_input_type(column: Column, inputs: Inputs) -> GraphQLInputObjectType:
+def get_comparison_input_type(column: Column[Any], inputs: Inputs) -> GraphQLInputObjectType:
     graphql_type = get_graphql_type_from_column(column.type)
     type_name = get_field_name(graphql_type, "comparison")
 

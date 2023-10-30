@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from graphql import GraphQLArgument, GraphQLArgumentMap, GraphQLInt, GraphQLList, GraphQLNonNull
-from sqlalchemy.orm import DeclarativeBase
 
 from .graphql_types import get_graphql_type_from_column
 from .helpers import get_table, has_int
@@ -13,7 +14,11 @@ from .inputs import (
     get_set_input_type,
     get_where_input_type,
 )
-from .types import Inputs
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import DeclarativeBase
+
+    from .types import Inputs
 
 PAGINATION_ARGS = {"limit": GraphQLInt, "offset": GraphQLInt}
 

@@ -2,27 +2,78 @@ from __future__ import annotations
 
 from typing import Union, cast
 
-from graphql import GraphQLField, GraphQLInt, GraphQLNonNull, GraphQLObjectType
+import pytest
+from graphql import (
+    GraphQLBoolean,
+    GraphQLField,
+    GraphQLInt,
+    GraphQLList,
+    GraphQLNamedType,
+    GraphQLNonNull,
+    GraphQLObjectType,
+    GraphQLString,
+)
 from graphql_sqlalchemy import build_schema
-from sqlalchemy import Boolean, Column, Integer, String
-from sqlalchemy.orm import declarative_base
-
-Base = declarative_base()
+from sqlalchemy import Column, ForeignKey, Table
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, registry, relationship
 
 
-class User(Base):  # type: ignore
-    __tablename__ = "test"
-
-    some_id = Column(Integer, primary_key=True)
-    some_string = Column(String(length=320), unique=True, index=True, nullable=False)
-    some_bool = Column(Boolean, nullable=False)
-    some_int = Column(Integer, nullable=False)
+class Base(DeclarativeBase):
+    registry = registry()
 
 
-def test_build_schema() -> None:
+user_project_association = Table(
+    "user_project",
+    Base.metadata,
+    Column("user_id", ForeignKey("user.some_id"), primary_key=True),
+    Column("project_id", ForeignKey("project.some_id"), primary_key=True),
+)
+
+
+class User(Base):
+    __tablename__ = "user"
+
+    some_id: Mapped[int] = mapped_column(primary_key=True)
+    some_string: Mapped[str] = mapped_column(unique=True, index=True, nullable=False)
+    some_bool: Mapped[bool] = mapped_column(nullable=False)
+
+    projects: Mapped[list[Project]] = relationship(back_populates="users", secondary=user_project_association)
+
+
+class Project(Base):
+    """Multiple projects per user, multiple users per project"""
+
+    __tablename__ = "project"
+
+    some_id: Mapped[int] = mapped_column(primary_key=True)
+
+    users: Mapped[list[User]] = relationship(back_populates="projects", secondary=user_project_association)
+
+
+@pytest.mark.parametrize(
+    ("field", "gql_type"),
+    [
+        ("some_id", GraphQLInt),
+        ("some_string", GraphQLString),
+        ("some_bool", GraphQLBoolean),
+    ],
+)
+def test_build_schema_simple(field: str, gql_type: type[GraphQLNamedType]) -> None:
     schema = build_schema(Base)
-    user = cast(Union[GraphQLObjectType, None], schema.get_type("test"))
+    user = cast(Union[GraphQLObjectType, None], schema.get_type("user"))
     assert user
-    f: GraphQLField = user.fields["some_id"]
+    f: GraphQLField = user.fields[field]
     assert isinstance(f.type, GraphQLNonNull)
-    assert f.type.of_type is GraphQLInt
+    assert f.type.of_type is gql_type
+
+
+def test_build_schema_rel() -> None:
+    schema = build_schema(Base)
+    user = cast(Union[GraphQLObjectType, None], schema.get_type("user"))
+    assert user
+    f: GraphQLField = user.fields["projects"]
+    assert isinstance(f.type, GraphQLNonNull)
+    assert isinstance(f.type.of_type, GraphQLList)
+    obj_type = f.type.of_type.of_type
+    assert isinstance(obj_type, GraphQLNonNull)
+    assert isinstance(obj_type.of_type, GraphQLObjectType)

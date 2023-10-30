@@ -15,6 +15,7 @@ classifiers = [
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Libraries",
     "License :: OSI Approved :: MIT License",
+    "Typing :: Typed",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
@@ -27,11 +28,17 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+asyncio = [
+    "SQLAlchemy[asyncio]",
+]
 test = [
     "pytest>=3.4",
     "pytest-cov>=2.9.0",
     "pytest-describe>=1.0.0",
+    "pytest-asyncio",
     "exceptiongroup; python_version < '3.11'",
+    "SQLAlchemy[asyncio]",
+    "aiosqlite",
 ]
 docs = [
     "pygments-graphql>=1.0.0",
@@ -52,10 +59,12 @@ dependencies = [
 [[tool.hatch.envs.test.matrix]]
 python = ["3.9", "3.10", "3.11"]
 [tool.hatch.envs.test]
+dependencies = ["pytest-watcher"]
 features = ["test"]
 [tool.hatch.envs.test.scripts]
 run = "pytest -v {args}"
-cov = "pytest -v --cov-report=term-missing --cov=graphql_sqlalchemy {args}"
+cov = "pytest -v --cov-report=term-missing --cov-report=xml --cov=graphql_sqlalchemy {args}"
+watch = "ptw . -vv --cov-report=xml --cov=graphql_sqlalchemy {args}"
 
 [tool.hatch.envs.docs]
 features = ["docs"]
@@ -64,6 +73,7 @@ build = "sphinx-build -M html docs/source docs/build"
 
 [tool.pytest.ini_options]
 xfail_strict = true
+asyncio_mode = "auto"
 addopts = [
     '--import-mode=importlib',
     '--strict-markers',
@@ -72,13 +82,11 @@ addopts = [
 
 [tool.mypy]
 python_version = "3.11"
-disallow_untyped_defs = true
+mypy_path = ["src", "tests"]
+strict = true
+explicit_package_bases = true # pytest doesn’t do __init__.py
 no_implicit_optional = true
-warn_unused_ignores = true
-warn_redundant_casts = true
-
-[tool.black]
-line-length = 120
+disallow_untyped_decorators = false # e.g. pytest.mark.parametrize
 
 [tool.ruff]
 line-length = 120
@@ -89,6 +97,8 @@ select = [
     "I",
     "UP",
     "PT",
+    "ASYNC",
+    "TCH",
 ]
 [tool.ruff.isort]
 required-imports = ["from __future__ import annotations"]

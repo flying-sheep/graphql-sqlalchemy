@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from graphql import (
     GraphQLField,
     GraphQLFieldMap,
@@ -16,7 +18,9 @@ from .graphql_types import get_graphql_type_from_column
 from .helpers import get_relationships, get_table
 from .names import get_field_name, get_table_name
 from .resolvers import make_field_resolver, make_many_resolver
-from .types import Inputs, Objects
+
+if TYPE_CHECKING:
+    from .types import Inputs, Objects
 
 
 def build_object_type(model: type[DeclarativeBase], objects: Objects, inputs: Inputs) -> GraphQLObjectType:
@@ -31,14 +35,18 @@ def build_object_type(model: type[DeclarativeBase], objects: Objects, inputs: In
             fields[column.name] = GraphQLField(graphql_type, resolve=make_field_resolver(column.name))
 
         for name, relationship in get_relationships(model):
+            [column_elem] = relationship.local_columns
             related_model = relationship.mapper.entity
             object_type: GraphQLOutputType = objects[get_table_name(related_model)]
             is_filterable = relationship.direction in (interfaces.ONETOMANY, interfaces.MANYTOMANY)
             if is_filterable:
-                object_type = GraphQLList(object_type)
+                object_type = GraphQLList(GraphQLNonNull(object_type))
                 make_resolver = make_many_resolver
             else:
                 make_resolver = make_field_resolver
+
+            if not column_elem.nullable:
+                object_type = GraphQLNonNull(object_type)
 
             fields[name] = GraphQLField(
                 object_type,

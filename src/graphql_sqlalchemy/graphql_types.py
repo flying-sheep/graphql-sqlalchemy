@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
 from graphql import (
     GraphQLBoolean,
     GraphQLFloat,
@@ -12,10 +14,12 @@ from graphql import (
 )
 from sqlalchemy import ARRAY, Boolean, Float, Integer
 from sqlalchemy.dialects.postgresql import ARRAY as PGARRAY
-from sqlalchemy.types import TypeEngine
+
+if TYPE_CHECKING:
+    from sqlalchemy.types import TypeEngine
 
 
-def get_graphql_type_from_column(column_type: TypeEngine) -> GraphQLScalarType | GraphQLList:
+def get_graphql_type_from_column(column_type: TypeEngine[Any]) -> GraphQLScalarType | GraphQLList[Any]:
     if isinstance(column_type, Integer):
         return GraphQLInt
 
@@ -31,7 +35,7 @@ def get_graphql_type_from_column(column_type: TypeEngine) -> GraphQLScalarType |
     return GraphQLString
 
 
-def get_base_comparison_fields(graphql_type: GraphQLScalarType | GraphQLList) -> dict[str, GraphQLInputField]:
+def get_base_comparison_fields(graphql_type: GraphQLScalarType | GraphQLList[Any]) -> dict[str, GraphQLInputField]:
     return {
         "_eq": GraphQLInputField(graphql_type),
         "_neq": GraphQLInputField(graphql_type),

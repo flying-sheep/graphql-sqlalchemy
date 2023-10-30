@@ -5,7 +5,8 @@ __pycache__/
 pip-wheel-metadata/
 dist/
 
-.coverage
+/.coverage
+/coverage.xml
 
 *.py[cod]
 *.egg-info

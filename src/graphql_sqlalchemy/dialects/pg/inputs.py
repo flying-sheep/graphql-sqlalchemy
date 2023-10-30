@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from graphql import GraphQLEnumType, GraphQLInputField, GraphQLInputObjectType, GraphQLList, GraphQLNonNull
-from sqlalchemy.orm import DeclarativeBase
 
 from ...helpers import get_table
 from ...inputs import get_where_input_type
 from ...names import get_field_name
-from ...types import Inputs
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import DeclarativeBase
+
+    from ...types import Inputs
 
 
 def get_constraint_enum(model: type[DeclarativeBase]) -> GraphQLEnumType:
