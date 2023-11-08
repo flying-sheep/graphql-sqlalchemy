@@ -18,7 +18,7 @@ from graphql import (
     GraphQLScalarType,
     GraphQLString,
 )
-from sqlalchemy import ARRAY, Boolean, Float, Integer
+from sqlalchemy import ARRAY, Boolean, Enum, Float, Integer
 from sqlalchemy.dialects.postgresql import ARRAY as PGARRAY
 from sqlalchemy.orm import DeclarativeBase
 
@@ -89,7 +89,9 @@ def get_graphql_type_from_python_inner(
     raise TypeError(f"Unsupported type: {typ} of type {type(typ)}")
 
 
-def get_graphql_type_from_column(column_type: TypeEngine[Any]) -> GraphQLScalarType | GraphQLList[GraphQLNonNull[Any]]:
+def get_graphql_type_from_column(
+    column_type: TypeEngine[Any]
+) -> GraphQLScalarType | GraphQLEnumType | GraphQLList[GraphQLNonNull[Any]]:
     if isinstance(column_type, Boolean):
         return GraphQLBoolean
     if isinstance(column_type, Integer):
@@ -99,10 +101,17 @@ def get_graphql_type_from_column(column_type: TypeEngine[Any]) -> GraphQLScalarT
     if isinstance(column_type, (ARRAY, PGARRAY)):
         inner_type_gql = get_graphql_type_from_column(column_type.item_type)
         return GraphQLList(GraphQLNonNull(inner_type_gql))
+    if isinstance(column_type, Enum):
+        if column_type.enum_class:
+            assert column_type.name
+            return GraphQLEnumType(column_type.name, column_type.enum_class)
+        return GraphQLEnumType(column_type.name or "_", dict.fromkeys(column_type.enums), names_as_values=True)
     return GraphQLString
 
 
-def get_base_comparison_fields(graphql_type: GraphQLScalarType | GraphQLList[Any]) -> dict[str, GraphQLInputField]:
+def get_base_comparison_fields(
+    graphql_type: GraphQLScalarType | GraphQLEnumType | GraphQLList[Any]
+) -> dict[str, GraphQLInputField]:
     return {
         "_eq": GraphQLInputField(graphql_type),
         "_neq": GraphQLInputField(graphql_type),

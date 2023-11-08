@@ -17,7 +17,7 @@ from graphql import (
     is_equal_type,
 )
 from graphql_sqlalchemy.graphql_types import get_graphql_type_from_column, get_graphql_type_from_python
-from sqlalchemy import ARRAY, Boolean, Column, Float, Integer, String
+from sqlalchemy import ARRAY, Boolean, Column, Enum, Float, Integer, String
 
 if sys.version_info >= (3, 10):
     str_or_none = str | None
@@ -39,6 +39,9 @@ if TYPE_CHECKING:
         pytest.param(Float, GraphQLFloat, id="float"),
         pytest.param(Boolean, GraphQLBoolean, id="bool"),
         pytest.param(String, GraphQLString, id="str"),
+        pytest.param(
+            Enum("a", "b", name="e"), GraphQLEnumType("e", dict.fromkeys(["a", "b"]), names_as_values=True), id="enum"
+        ),
         pytest.param(ARRAY(String), GraphQLList(GraphQLNonNull(GraphQLString)), id="arr"),
     ],
 )
@@ -46,7 +49,8 @@ def test_get_graphql_type_from_column(
     sqla_type: TypeEngine[Any], expected: GraphQLScalarType | GraphQLList[Any]
 ) -> None:
     column = Column("name", sqla_type)
-    assert is_equal_type(get_graphql_type_from_column(column.type), expected)
+    converted = get_graphql_type_from_column(column.type)
+    assert is_equal_type(converted, expected) or is_equal_enum(converted, expected)
 
 
 @pytest.mark.parametrize(
