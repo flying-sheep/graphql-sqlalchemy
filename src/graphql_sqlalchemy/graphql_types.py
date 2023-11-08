@@ -3,10 +3,11 @@ from __future__ import annotations
 import sys
 from collections.abc import Collection
 from functools import singledispatch
-from typing import TYPE_CHECKING, Any, get_args, get_origin
+from typing import TYPE_CHECKING, Any, Literal, get_args, get_origin
 
 from graphql import (
     GraphQLBoolean,
+    GraphQLEnumType,
     GraphQLFloat,
     GraphQLInputField,
     GraphQLInt,
@@ -44,7 +45,9 @@ def get_graphql_type_from_python(
 
 
 @get_graphql_type_from_python.register(UnionType)
-def _(typ: UnionType, objects: Objects) -> GraphQLScalarType | GraphQLObjectType | GraphQLList[GraphQLNonNull[Any]]:
+def _(
+    typ: UnionType, objects: Objects
+) -> GraphQLScalarType | GraphQLObjectType | GraphQLEnumType | GraphQLList[GraphQLNonNull[Any]]:
     types = set(get_args(typ)) - {type(None)}
     if len(types) != 1:
         raise NotImplementedError(f"Unsupported union type: {typ} with args {types}")
@@ -53,16 +56,21 @@ def _(typ: UnionType, objects: Objects) -> GraphQLScalarType | GraphQLObjectType
 
 @get_graphql_type_from_python.register(type)
 @get_graphql_type_from_python.register(type(list[str]))  # _GenericAlias
+@get_graphql_type_from_python.register(type(Literal[1]))  # _LiteralGenericAlias
 def _(
     typ: type[str | int | float | bool | DeclarativeBase], objects: Objects
-) -> GraphQLNonNull[GraphQLScalarType | GraphQLObjectType | GraphQLList[GraphQLNonNull[Any]]]:
+) -> GraphQLNonNull[GraphQLScalarType | GraphQLObjectType | GraphQLEnumType | GraphQLList[GraphQLNonNull[Any]]]:
     inner = get_graphql_type_from_python_inner(typ, objects)
     return GraphQLNonNull(inner)
 
 
 def get_graphql_type_from_python_inner(
     typ: type[str | int | float | bool | DeclarativeBase], objects: Objects
-) -> GraphQLScalarType | GraphQLObjectType | GraphQLList[GraphQLNonNull[Any]]:
+) -> GraphQLScalarType | GraphQLObjectType | GraphQLEnumType | GraphQLList[GraphQLNonNull[Any]]:
+    # doesn’t support issubclass
+    if get_origin(typ) is Literal:
+        return GraphQLEnumType("_", dict.fromkeys(get_args(typ)), names_as_values=True)
+    # all these do
     if issubclass(typ, bool):
         return GraphQLBoolean
     if issubclass(typ, int):

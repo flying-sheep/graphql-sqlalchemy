@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import sys
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import pytest
 from graphql import (
     GraphQLBoolean,
+    GraphQLEnumType,
     GraphQLFloat,
     GraphQLInt,
     GraphQLList,
@@ -55,6 +56,11 @@ def test_get_graphql_type_from_column(
         pytest.param(float, GraphQLNonNull(GraphQLFloat), id="float"),
         pytest.param(bool, GraphQLNonNull(GraphQLBoolean), id="bool"),
         pytest.param(str, GraphQLNonNull(GraphQLString), id="str"),
+        pytest.param(
+            Literal["a", "b"],
+            GraphQLNonNull(GraphQLEnumType("_", dict.fromkeys(["a", "b"]), names_as_values=True)),
+            id="enum",
+        ),
         pytest.param(str_or_none, GraphQLString, id="str|None"),
         pytest.param(list[str], GraphQLNonNull(GraphQLList(GraphQLNonNull(GraphQLString))), id="arr"),
     ],
@@ -62,4 +68,13 @@ def test_get_graphql_type_from_column(
 def test_get_graphql_type_from_python(
     py_type: type[Any] | UnionType, expected: GraphQLScalarType | GraphQLObjectType | GraphQLList[Any]
 ) -> None:
-    assert is_equal_type(get_graphql_type_from_python(py_type, {}), expected)
+    converted = get_graphql_type_from_python(py_type, {})
+    assert is_equal_type(converted, expected) or is_equal_enum(converted, expected)
+
+
+def is_equal_enum(a: Any, b: Any) -> bool:
+    if isinstance(a, GraphQLNonNull) and isinstance(b, GraphQLNonNull):
+        return is_equal_enum(a.of_type, b.of_type)
+    if not isinstance(a, GraphQLEnumType) or not isinstance(b, GraphQLEnumType):
+        return False
+    return a.name == b.name and a.values == b.values
