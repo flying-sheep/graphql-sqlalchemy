@@ -39,13 +39,15 @@ def build_queries(model: type[DeclarativeBase], objects: Objects, queries: Graph
     objects[object_type.name] = object_type
     queries[object_type.name] = GraphQLField(
         GraphQLNonNull(GraphQLList(GraphQLNonNull(object_type))),
-        args=make_args(model, inputs=inputs),
+        args=make_args(model, inputs, objects),
         resolve=make_object_resolver(model),
     )
 
     if get_table(model).primary_key:
         pk_field_name = get_field_name(model, "by_pk")
-        queries[pk_field_name] = GraphQLField(object_type, args=make_pk_args(model), resolve=make_pk_resolver(model))
+        queries[pk_field_name] = GraphQLField(
+            object_type, args=make_pk_args(model, objects), resolve=make_pk_resolver(model)
+        )
 
 
 def build_mutations(model: type[DeclarativeBase], objects: Objects, mutations: GraphQLFieldMap, inputs: Inputs) -> None:
@@ -54,33 +56,33 @@ def build_mutations(model: type[DeclarativeBase], objects: Objects, mutations: G
 
     insert_type_name = get_field_name(model, "insert")
     mutations[insert_type_name] = GraphQLField(
-        mutation_response_type, args=make_insert_args(model, inputs), resolve=make_insert_resolver(model)
+        mutation_response_type, args=make_insert_args(model, inputs, objects), resolve=make_insert_resolver(model)
     )
 
     insert_one_type_name = get_field_name(model, "insert_one")
     mutations[insert_one_type_name] = GraphQLField(
-        object_type, args=make_insert_one_args(model, inputs), resolve=make_insert_one_resolver(model)
+        object_type, args=make_insert_one_args(model, inputs, objects), resolve=make_insert_one_resolver(model)
     )
 
     delete_type_name = get_field_name(model, "delete")
     mutations[delete_type_name] = GraphQLField(
-        mutation_response_type, args=make_delete_args(model, inputs), resolve=make_delete_resolver(model)
+        mutation_response_type, args=make_delete_args(model, inputs, objects), resolve=make_delete_resolver(model)
     )
 
     update_type_name = get_field_name(model, "update")
     mutations[update_type_name] = GraphQLField(
-        mutation_response_type, args=make_update_args(model, inputs), resolve=make_update_resolver(model)
+        mutation_response_type, args=make_update_args(model, inputs, objects), resolve=make_update_resolver(model)
     )
 
     if get_table(model).primary_key:
         delete_by_pk_type_name = get_field_name(model, "delete_by_pk")
         mutations[delete_by_pk_type_name] = GraphQLField(
-            object_type, args=make_pk_args(model), resolve=make_delete_by_pk_resolver(model)
+            object_type, args=make_pk_args(model, objects), resolve=make_delete_by_pk_resolver(model)
         )
 
         update_by_pk_type_name = get_field_name(model, "update_by_pk")
         mutations[update_by_pk_type_name] = GraphQLField(
-            object_type, args=make_update_by_pk_args(model, inputs), resolve=make_update_by_pk_resolver(model)
+            object_type, args=make_update_by_pk_args(model, inputs, objects), resolve=make_update_by_pk_resolver(model)
         )
 
 

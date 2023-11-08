@@ -49,7 +49,7 @@ def test_get_graphql_type_from_column(
     sqla_type: TypeEngine[Any], expected: GraphQLScalarType | GraphQLList[Any]
 ) -> None:
     column = Column("name", sqla_type)
-    converted = get_graphql_type_from_column(column.type)
+    converted = get_graphql_type_from_column(column.type, {})
     assert is_equal_type(converted, expected) or is_equal_enum(converted, expected)
 
 

@@ -69,7 +69,13 @@ def get_graphql_type_from_python_inner(
 ) -> GraphQLScalarType | GraphQLObjectType | GraphQLEnumType | GraphQLList[GraphQLNonNull[Any]]:
     # doesn’t support issubclass
     if get_origin(typ) is Literal:
-        return GraphQLEnumType("_", dict.fromkeys(get_args(typ)), names_as_values=True)
+        name = "_"  # TODO: add support for more than one enum
+        if (enum := objects.get(name)) is None:
+            enum = GraphQLEnumType(name, dict.fromkeys(get_args(typ)), names_as_values=True)
+            objects[name] = enum
+        if not isinstance(enum, GraphQLEnumType):
+            raise RuntimeError(f"Object type {name} already exists and is not an enum: {enum}")
+        return enum
     # all these do
     if issubclass(typ, bool):
         return GraphQLBoolean
@@ -90,7 +96,7 @@ def get_graphql_type_from_python_inner(
 
 
 def get_graphql_type_from_column(
-    column_type: TypeEngine[Any]
+    column_type: TypeEngine[Any], objects: Objects
 ) -> GraphQLScalarType | GraphQLEnumType | GraphQLList[GraphQLNonNull[Any]]:
     if isinstance(column_type, Boolean):
         return GraphQLBoolean
@@ -99,13 +105,21 @@ def get_graphql_type_from_column(
     if isinstance(column_type, Float):
         return GraphQLFloat
     if isinstance(column_type, (ARRAY, PGARRAY)):
-        inner_type_gql = get_graphql_type_from_column(column_type.item_type)
+        inner_type_gql = get_graphql_type_from_column(column_type.item_type, objects)
         return GraphQLList(GraphQLNonNull(inner_type_gql))
     if isinstance(column_type, Enum):
-        if column_type.enum_class:
-            assert column_type.name
-            return GraphQLEnumType(column_type.name, column_type.enum_class)
-        return GraphQLEnumType(column_type.name or "_", dict.fromkeys(column_type.enums), names_as_values=True)
+        if not column_type.name:
+            raise ValueError(f"Enum for {column_type} must have a name")
+        name = column_type.name
+        if (enum := objects.get(name)) is None:
+            if column_type.enum_class:
+                enum = GraphQLEnumType(name, column_type.enum_class)
+            else:
+                enum = GraphQLEnumType(name, dict.fromkeys(column_type.enums), names_as_values=True)
+            objects[name] = enum
+        if not isinstance(enum, GraphQLEnumType):
+            raise RuntimeError(f"Object type {name} already exists and is not an enum: {enum}")
+        return enum
     return GraphQLString
 
 
