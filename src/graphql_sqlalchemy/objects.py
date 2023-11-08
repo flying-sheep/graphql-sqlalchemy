@@ -42,12 +42,12 @@ def build_object_type(model: type[DeclarativeBase], objects: Objects, inputs: In
 
         for name, prop in get_hybrid_properties(model).items():
             typ = get_annotations(prop.fget, eval_str=True)["return"]
-            graphql_type = get_graphql_type_from_python(typ)
+            graphql_type = get_graphql_type_from_python(typ, objects)
             fields[name] = GraphQLField(graphql_type, resolve=make_field_resolver(name))
 
         for name, relationship in get_relationships(model):
             [column_elem] = relationship.local_columns
-            related_model = relationship.mapper.entity
+            related_model: type[DeclarativeBase] = relationship.mapper.entity
             object_type: GraphQLOutputType = objects[get_table_name(related_model)]
             is_filterable = relationship.direction in (interfaces.ONETOMANY, interfaces.MANYTOMANY)
             if is_filterable:
