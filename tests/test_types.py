@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -16,6 +17,13 @@ from graphql import (
 )
 from graphql_sqlalchemy.graphql_types import get_graphql_type_from_column, get_graphql_type_from_python
 from sqlalchemy import ARRAY, Boolean, Column, Float, Integer, String
+
+if sys.version_info >= (3, 10):
+    str_or_none = str | None
+else:
+    from typing import Union as _U
+
+    str_or_none = _U[str, None]
 
 if TYPE_CHECKING:
     from types import UnionType
@@ -47,7 +55,7 @@ def test_get_graphql_type_from_column(
         pytest.param(float, GraphQLNonNull(GraphQLFloat), id="float"),
         pytest.param(bool, GraphQLNonNull(GraphQLBoolean), id="bool"),
         pytest.param(str, GraphQLNonNull(GraphQLString), id="str"),
-        pytest.param(str | None, GraphQLString, id="str|None"),
+        pytest.param(str_or_none, GraphQLString, id="str|None"),
         pytest.param(list[str], GraphQLNonNull(GraphQLList(GraphQLNonNull(GraphQLString))), id="arr"),
     ],
 )

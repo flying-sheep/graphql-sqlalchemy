@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import sys
 from collections.abc import Collection
 from functools import singledispatch
-from types import UnionType
 from typing import TYPE_CHECKING, Any, get_args, get_origin
 
 from graphql import (
@@ -22,6 +22,13 @@ from sqlalchemy.dialects.postgresql import ARRAY as PGARRAY
 from sqlalchemy.orm import DeclarativeBase
 
 from graphql_sqlalchemy.names import get_table_name
+
+if sys.version_info >= (3, 10):
+    from types import UnionType
+else:
+    from typing import Union as _U
+
+    UnionType = type(_U[int, str])
 
 if TYPE_CHECKING:
     from sqlalchemy.types import TypeEngine
