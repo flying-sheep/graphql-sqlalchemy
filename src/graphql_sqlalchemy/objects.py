@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from inspect import signature
+import sys
 from typing import TYPE_CHECKING
 
 from graphql import (
@@ -20,6 +20,11 @@ from .helpers import get_hybrid_properties, get_relationships, get_table
 from .names import get_field_name, get_table_name
 from .resolvers import make_field_resolver, make_many_resolver
 
+if sys.version_info >= (3, 10):
+    from inspect import get_annotations
+else:
+    from get_annotations import get_annotations
+
 if TYPE_CHECKING:
     from .types import Inputs, Objects
 
@@ -36,7 +41,7 @@ def build_object_type(model: type[DeclarativeBase], objects: Objects, inputs: In
             fields[column.name] = GraphQLField(graphql_type, resolve=make_field_resolver(column.name))
 
         for name, prop in get_hybrid_properties(model).items():
-            typ = signature(prop.fget, eval_str=True).return_annotation
+            typ = get_annotations(prop.fget, eval_str=True)["return"]
             graphql_type = get_graphql_type_from_python(typ)
             fields[name] = GraphQLField(graphql_type, resolve=make_field_resolver(name))
 
