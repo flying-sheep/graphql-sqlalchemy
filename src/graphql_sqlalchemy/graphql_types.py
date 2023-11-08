@@ -19,6 +19,22 @@ if TYPE_CHECKING:
     from sqlalchemy.types import TypeEngine
 
 
+def get_graphql_type_from_python(typ: type[str | int | float | bool]) -> GraphQLScalarType:
+    if issubclass(typ, int):
+        return GraphQLInt
+
+    if issubclass(typ, float):
+        return GraphQLFloat
+
+    if issubclass(typ, bool):
+        return GraphQLBoolean
+
+    if issubclass(typ, str):
+        return GraphQLString
+
+    raise TypeError(f"Unsupported type: {typ}")
+
+
 def get_graphql_type_from_column(column_type: TypeEngine[Any]) -> GraphQLScalarType | GraphQLList[Any]:
     if isinstance(column_type, Integer):
         return GraphQLInt

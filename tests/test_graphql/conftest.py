@@ -10,6 +10,7 @@ from graphql import ExecutionResult, GraphQLSchema, graphql, graphql_sync
 from graphql_sqlalchemy.schema import build_schema
 from sqlalchemy import Column, Engine, ForeignKey, Table
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, registry, relationship
 
 if TYPE_CHECKING:
@@ -44,6 +45,10 @@ class Article(Base):
     author: Mapped[Author] = relationship(back_populates="articles")
     rating: Mapped[int]
     tags: Mapped[list[Tag]] = relationship(back_populates="articles", secondary=article_tag_association)
+
+    @hybrid_property
+    def stars(self) -> str:
+        return ("★" * self.rating) + ("☆" * (5 - self.rating))
 
 
 class Tag(Base):

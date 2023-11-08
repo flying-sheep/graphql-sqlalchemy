@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from inspect import signature
 from typing import TYPE_CHECKING
 
 from graphql import (
@@ -14,8 +15,8 @@ from graphql import (
 from sqlalchemy.orm import DeclarativeBase, interfaces
 
 from .args import make_args
-from .graphql_types import get_graphql_type_from_column
-from .helpers import get_relationships, get_table
+from .graphql_types import get_graphql_type_from_column, get_graphql_type_from_python
+from .helpers import get_hybrid_properties, get_relationships, get_table
 from .names import get_field_name, get_table_name
 from .resolvers import make_field_resolver, make_many_resolver
 
@@ -33,6 +34,11 @@ def build_object_type(model: type[DeclarativeBase], objects: Objects, inputs: In
                 graphql_type = GraphQLNonNull(graphql_type)
 
             fields[column.name] = GraphQLField(graphql_type, resolve=make_field_resolver(column.name))
+
+        for name, prop in get_hybrid_properties(model).items():
+            typ = signature(prop.fget, eval_str=True).return_annotation
+            graphql_type = get_graphql_type_from_python(typ)
+            fields[name] = GraphQLField(graphql_type, resolve=make_field_resolver(name))
 
         for name, relationship in get_relationships(model):
             [column_elem] = relationship.local_columns
