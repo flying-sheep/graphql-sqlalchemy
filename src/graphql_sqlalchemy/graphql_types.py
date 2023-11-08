@@ -76,6 +76,7 @@ def get_graphql_type_from_python_inner(
     if issubclass(get_origin(typ), Collection):
         [typ_inner] = get_args(typ)
         inner_type_gql = get_graphql_type_from_python(typ_inner, objects)
+        assert isinstance(inner_type_gql, GraphQLNonNull)
         return GraphQLList(inner_type_gql)
     raise TypeError(f"Unsupported type: {typ} of type {type(typ)}")
 

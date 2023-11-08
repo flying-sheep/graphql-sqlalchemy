@@ -79,7 +79,10 @@ asyncio_mode = "auto"
 addopts = [
     '--import-mode=importlib',
     '--strict-markers',
-    '-Werror',
+]
+filterwarnings = [
+    'error',
+    "ignore:'typing.ByteString' is deprecated:DeprecationWarning:graphql",
 ]
 
 [tool.mypy]
