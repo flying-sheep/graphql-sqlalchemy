@@ -16,3 +16,8 @@ def test_all(query_example: QueryCallable) -> None:
 def test_get_by_pk(query_example: QueryCallable) -> None:
     data = query_example('author_by_pk(name: "Felicitas") { name }')
     assert data["author_by_pk"] == {"name": "Felicitas"}
+
+
+def test_hybrid_prop(query_example: QueryCallable) -> None:
+    data = query_example('article_by_pk(title: "Bjørk bad") { stars }')
+    assert data["article_by_pk"] == {"stars": "★★☆☆☆"}

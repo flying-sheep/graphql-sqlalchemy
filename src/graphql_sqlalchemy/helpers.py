@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Float, Integer, Table
+from sqlalchemy.ext.hybrid import hybrid_property
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import DeclarativeBase, InstrumentedAttribute, Mapper, RelationshipProperty
@@ -20,6 +21,12 @@ def get_mapper(model: type[DeclarativeBase] | InstrumentedAttribute[Any]) -> Map
 
 def get_relationships(model: type[DeclarativeBase]) -> list[tuple[str, RelationshipProperty[Any]]]:
     return get_mapper(model).relationships.items()
+
+
+def get_hybrid_properties(model: type[DeclarativeBase]) -> dict[str, hybrid_property[Any]]:
+    return {
+        key: prop for key, prop in get_mapper(model).all_orm_descriptors.items() if isinstance(prop, hybrid_property)
+    }
 
 
 def has_int(model: type[DeclarativeBase]) -> bool:
