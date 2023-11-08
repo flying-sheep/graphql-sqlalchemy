@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from graphql import (
     GraphQLBoolean,
+    GraphQLFloat,
     GraphQLInt,
     GraphQLList,
     GraphQLNonNull,
@@ -13,7 +14,7 @@ from graphql import (
     is_equal_type,
 )
 from graphql_sqlalchemy.graphql_types import get_graphql_type_from_column
-from sqlalchemy import ARRAY, Boolean, Float, Integer, String
+from sqlalchemy import ARRAY, Boolean, Column, Float, Integer, String
 
 if TYPE_CHECKING:
     from sqlalchemy.sql.type_api import TypeEngine
@@ -23,7 +24,7 @@ if TYPE_CHECKING:
     ("sqla_type", "expected"),
     [
         pytest.param(Integer, GraphQLInt, id="int"),
-        pytest.param(Float, GraphQLInt, id="float"),
+        pytest.param(Float, GraphQLFloat, id="float"),
         pytest.param(Boolean, GraphQLBoolean, id="bool"),
         pytest.param(String, GraphQLString, id="str"),
         pytest.param(ARRAY(String), GraphQLList(GraphQLNonNull(GraphQLString)), id="arr"),
@@ -32,4 +33,5 @@ if TYPE_CHECKING:
 def test_get_graphql_type_from_column(
     sqla_type: TypeEngine[Any], expected: GraphQLScalarType | GraphQLList[Any]
 ) -> None:
-    assert is_equal_type(get_graphql_type_from_column(sqla_type), expected)
+    column = Column("name", sqla_type)
+    assert is_equal_type(get_graphql_type_from_column(column.type), expected)
