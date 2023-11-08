@@ -8,10 +8,11 @@ from graphql import (
     GraphQLField,
     GraphQLInt,
     GraphQLList,
-    GraphQLNamedType,
     GraphQLNonNull,
     GraphQLObjectType,
+    GraphQLScalarType,
     GraphQLString,
+    is_equal_type,
 )
 from graphql_sqlalchemy import build_schema
 from sqlalchemy import Column, ForeignKey, Table
@@ -58,13 +59,12 @@ class Project(Base):
         ("some_bool", GraphQLBoolean),
     ],
 )
-def test_build_schema_simple(field: str, gql_type: type[GraphQLNamedType]) -> None:
+def test_build_schema_simple(field: str, gql_type: GraphQLScalarType) -> None:
     schema = build_schema(Base)
     user = cast(Union[GraphQLObjectType, None], schema.get_type("user"))
     assert user
     f: GraphQLField = user.fields[field]
-    assert isinstance(f.type, GraphQLNonNull)
-    assert f.type.of_type is gql_type
+    assert is_equal_type(f.type, GraphQLNonNull(gql_type))
 
 
 def test_build_schema_rel() -> None:

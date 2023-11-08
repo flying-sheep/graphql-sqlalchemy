@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from collections.abc import Collection, Mapping
+from typing import TYPE_CHECKING, Any, get_args
 
 from graphql import (
     GraphQLBoolean,
@@ -19,23 +20,34 @@ if TYPE_CHECKING:
     from sqlalchemy.types import TypeEngine
 
 
-def get_graphql_type_from_python(typ: type[str | int | float | bool]) -> GraphQLScalarType:
+def is_gql_collection_type(typ: type[Any]) -> bool:
+    return issubclass(typ, Collection) and not isinstance(typ, (str, bytes, Mapping))
+
+
+def get_graphql_type_from_python(
+    typ: type[str | int | float | bool]
+) -> GraphQLNonNull[GraphQLScalarType] | GraphQLNonNull[GraphQLList[GraphQLNonNull[Any]]]:
     if issubclass(typ, int):
-        return GraphQLInt
+        return GraphQLNonNull(GraphQLInt)
 
     if issubclass(typ, float):
-        return GraphQLFloat
+        return GraphQLNonNull(GraphQLFloat)
 
     if issubclass(typ, bool):
-        return GraphQLBoolean
+        return GraphQLNonNull(GraphQLBoolean)
 
     if issubclass(typ, str):
-        return GraphQLString
+        return GraphQLNonNull(GraphQLString)
+
+    if is_gql_collection_type(typ):
+        [typ_inner] = get_args(typ)
+        inner_type_gql = get_graphql_type_from_python(typ_inner)
+        return GraphQLNonNull(GraphQLList(GraphQLNonNull(inner_type_gql)))
 
     raise TypeError(f"Unsupported type: {typ}")
 
 
-def get_graphql_type_from_column(column_type: TypeEngine[Any]) -> GraphQLScalarType | GraphQLList[Any]:
+def get_graphql_type_from_column(column_type: TypeEngine[Any]) -> GraphQLScalarType | GraphQLList[GraphQLNonNull[Any]]:
     if isinstance(column_type, Integer):
         return GraphQLInt
 
@@ -46,7 +58,8 @@ def get_graphql_type_from_column(column_type: TypeEngine[Any]) -> GraphQLScalarT
         return GraphQLBoolean
 
     if isinstance(column_type, (ARRAY, PGARRAY)):
-        return GraphQLList(get_graphql_type_from_column(column_type.item_type))
+        inner_type_gql = get_graphql_type_from_column(column_type.item_type)
+        return GraphQLList(GraphQLNonNull(inner_type_gql))
 
     return GraphQLString
 
