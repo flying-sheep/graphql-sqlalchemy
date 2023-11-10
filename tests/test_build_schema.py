@@ -37,6 +37,7 @@ class User(Base):
     some_id: Mapped[int] = mapped_column(primary_key=True)
     some_string: Mapped[str] = mapped_column(unique=True, index=True, nullable=False)
     some_bool: Mapped[bool] = mapped_column(nullable=False)
+    some_enum: Mapped[bool] = mapped_column(nullable=False)
 
     projects: Mapped[list[Project]] = relationship(back_populates="users", secondary=user_project_association)
 

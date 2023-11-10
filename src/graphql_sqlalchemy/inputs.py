@@ -41,7 +41,7 @@ def get_comparison_input_type(column: Column[Any], inputs: Inputs, objects: Obje
 
     fields = get_base_comparison_fields(graphql_type)
 
-    if graphql_type == GraphQLString:
+    if graphql_type is GraphQLString:
         fields.update(get_string_comparison_fields())
 
     inputs[type_name] = GraphQLInputObjectType(type_name, fields)

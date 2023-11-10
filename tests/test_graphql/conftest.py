@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import sys
 from asyncio import run
+from enum import Enum
 from textwrap import indent
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from graphql import ExecutionResult, GraphQLSchema, graphql, graphql_sync
 from graphql_sqlalchemy.schema import build_schema
-from sqlalchemy import Column, Engine, Enum, ForeignKey, Table
+from sqlalchemy import Column, Engine, ForeignKey, Table
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, registry, relationship
@@ -51,17 +52,20 @@ class Article(Base):
         return ("★" * self.rating) + ("☆" * (5 - self.rating))
 
 
+class TagID(Enum):
+    politics = "Politics"
+    sports = "Sports"
+
+
 class Tag(Base):
     __tablename__ = "tag"
-    name: Mapped[Literal["Politics", "Sports"]] = mapped_column(
-        Enum("Politics", "Sports", name="tag_id"), primary_key=True
-    )
+    name: Mapped[TagID] = mapped_column(primary_key=True)
     articles: Mapped[list[Article]] = relationship(back_populates="tags", secondary=article_tag_association)
 
 
 def add_example_data(db_session: Session | AsyncSession) -> None:
-    db_session.add(tag_politics := Tag(name="Politics"))
-    db_session.add(tag_sports := Tag(name="Sports"))
+    db_session.add(tag_politics := Tag(name=TagID.politics))
+    db_session.add(tag_sports := Tag(name=TagID.sports))
 
     db_session.add(felicias := Author(name="Felicitas"))
     db_session.add_all(

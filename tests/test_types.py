@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import sys
-from typing import TYPE_CHECKING, Any, Literal
+from enum import Enum
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from graphql import (
     GraphQLBoolean,
     GraphQLEnumType,
+    GraphQLEnumValueMap,
     GraphQLFloat,
     GraphQLInt,
     GraphQLList,
@@ -17,7 +19,8 @@ from graphql import (
     is_equal_type,
 )
 from graphql_sqlalchemy.graphql_types import get_graphql_type_from_column, get_graphql_type_from_python
-from sqlalchemy import ARRAY, Boolean, Column, Enum, Float, Integer, String
+from sqlalchemy import ARRAY, Boolean, Column, Float, Integer, String
+from sqlalchemy import Enum as SqlaEnum
 
 if sys.version_info >= (3, 10):
     str_or_none = str | None
@@ -40,7 +43,9 @@ if TYPE_CHECKING:
         pytest.param(Boolean, GraphQLBoolean, id="bool"),
         pytest.param(String, GraphQLString, id="str"),
         pytest.param(
-            Enum("a", "b", name="e"), GraphQLEnumType("e", dict.fromkeys(["a", "b"]), names_as_values=True), id="enum"
+            SqlaEnum(Enum("e", {"a": 1, "b": 2})),
+            GraphQLEnumType("e", {"a": 1, "b": 2}, names_as_values=True),
+            id="enum",
         ),
         pytest.param(ARRAY(String), GraphQLList(GraphQLNonNull(GraphQLString)), id="arr"),
     ],
@@ -50,7 +55,7 @@ def test_get_graphql_type_from_column(
 ) -> None:
     column = Column("name", sqla_type)
     converted = get_graphql_type_from_column(column.type, {})
-    assert is_equal_type(converted, expected) or is_equal_enum(converted, expected)
+    assert_equal_type(converted, expected)
 
 
 @pytest.mark.parametrize(
@@ -61,8 +66,8 @@ def test_get_graphql_type_from_column(
         pytest.param(bool, GraphQLNonNull(GraphQLBoolean), id="bool"),
         pytest.param(str, GraphQLNonNull(GraphQLString), id="str"),
         pytest.param(
-            Literal["a", "b"],
-            GraphQLNonNull(GraphQLEnumType("_", dict.fromkeys(["a", "b"]), names_as_values=True)),
+            Enum("E1", {"a": 1, "b": 2}),
+            GraphQLNonNull(GraphQLEnumType("e1", {"a": 1, "b": 2}, names_as_values=True)),
             id="enum",
         ),
         pytest.param(str_or_none, GraphQLString, id="str|None"),
@@ -73,12 +78,21 @@ def test_get_graphql_type_from_python(
     py_type: type[Any] | UnionType, expected: GraphQLScalarType | GraphQLObjectType | GraphQLList[Any]
 ) -> None:
     converted = get_graphql_type_from_python(py_type, {})
-    assert is_equal_type(converted, expected) or is_equal_enum(converted, expected)
+    assert_equal_type(converted, expected)
 
 
-def is_equal_enum(a: Any, b: Any) -> bool:
+def assert_equal_type(a: Any, b: Any) -> None:
+    if is_equal_type(a, b):
+        return
     if isinstance(a, GraphQLNonNull) and isinstance(b, GraphQLNonNull):
-        return is_equal_enum(a.of_type, b.of_type)
-    if not isinstance(a, GraphQLEnumType) or not isinstance(b, GraphQLEnumType):
-        return False
-    return a.name == b.name and a.values == b.values
+        assert_equal_type(a.of_type, b.of_type)
+        return
+    assert type(a) is type(b)
+    assert isinstance(a, GraphQLEnumType)
+    assert isinstance(b, GraphQLEnumType)
+    assert a.name == b.name
+    assert mk_comparable_values(a.values) == mk_comparable_values(b.values)
+
+
+def mk_comparable_values(values: GraphQLEnumValueMap) -> Any:
+    return {k: v.value for k, v in values.items()}

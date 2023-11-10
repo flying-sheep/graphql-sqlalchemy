@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Collection
+from enum import Enum
 from functools import singledispatch
-from typing import TYPE_CHECKING, Any, Literal, get_args, get_origin
+from typing import TYPE_CHECKING, Any, get_args, get_origin
 
 from graphql import (
     GraphQLBoolean,
@@ -18,7 +19,8 @@ from graphql import (
     GraphQLScalarType,
     GraphQLString,
 )
-from sqlalchemy import ARRAY, Boolean, Enum, Float, Integer
+from sqlalchemy import ARRAY, Boolean, Float, Integer
+from sqlalchemy import Enum as SqlaEnum
 from sqlalchemy.dialects.postgresql import ARRAY as PGARRAY
 from sqlalchemy.orm import DeclarativeBase
 
@@ -56,7 +58,6 @@ def _(
 
 @get_graphql_type_from_python.register(type)
 @get_graphql_type_from_python.register(type(list[str]))  # _GenericAlias
-@get_graphql_type_from_python.register(type(Literal[1]))  # _LiteralGenericAlias
 def _(
     typ: type[str | int | float | bool | DeclarativeBase], objects: Objects
 ) -> GraphQLNonNull[GraphQLScalarType | GraphQLObjectType | GraphQLEnumType | GraphQLList[GraphQLNonNull[Any]]]:
@@ -67,16 +68,6 @@ def _(
 def get_graphql_type_from_python_inner(
     typ: type[str | int | float | bool | DeclarativeBase], objects: Objects
 ) -> GraphQLScalarType | GraphQLObjectType | GraphQLEnumType | GraphQLList[GraphQLNonNull[Any]]:
-    # doesn’t support issubclass
-    if get_origin(typ) is Literal:
-        name = "_"  # TODO: add support for more than one enum
-        if (enum := objects.get(name)) is None:
-            enum = GraphQLEnumType(name, dict.fromkeys(get_args(typ)), names_as_values=True)
-            objects[name] = enum
-        if not isinstance(enum, GraphQLEnumType):
-            raise RuntimeError(f"Object type {name} already exists and is not an enum: {enum}")
-        return enum
-    # all these do
     if issubclass(typ, bool):
         return GraphQLBoolean
     if issubclass(typ, int):
@@ -87,11 +78,18 @@ def get_graphql_type_from_python_inner(
         return GraphQLString
     if issubclass(typ, DeclarativeBase):
         return objects[get_table_name(typ)]
-    if issubclass(get_origin(typ), Collection):
+    if isinstance((origin := get_origin(typ)), type) and issubclass(origin, Collection):
         [typ_inner] = get_args(typ)
         inner_type_gql = get_graphql_type_from_python(typ_inner, objects)
         assert isinstance(inner_type_gql, GraphQLNonNull)
         return GraphQLList(inner_type_gql)
+    if issubclass(typ, Enum):
+        name = typ.__name__.lower()
+        if (enum := objects.get(name)) is None:
+            objects[name] = enum = GraphQLEnumType(name, typ)
+        if not isinstance(enum, GraphQLEnumType):
+            raise RuntimeError(f"Object type {name} already exists and is not an enum: {enum}")
+        return enum
     raise TypeError(f"Unsupported type: {typ} of type {type(typ)}")
 
 
@@ -107,16 +105,14 @@ def get_graphql_type_from_column(
     if isinstance(column_type, (ARRAY, PGARRAY)):
         inner_type_gql = get_graphql_type_from_column(column_type.item_type, objects)
         return GraphQLList(GraphQLNonNull(inner_type_gql))
-    if isinstance(column_type, Enum):
+    if isinstance(column_type, SqlaEnum):
         if not column_type.name:
             raise ValueError(f"Enum for {column_type} must have a name")
         name = column_type.name
         if (enum := objects.get(name)) is None:
-            if column_type.enum_class:
-                enum = GraphQLEnumType(name, column_type.enum_class)
-            else:
-                enum = GraphQLEnumType(name, dict.fromkeys(column_type.enums), names_as_values=True)
-            objects[name] = enum
+            if not column_type.enum_class:
+                return GraphQLString
+            objects[name] = enum = GraphQLEnumType(name, column_type.enum_class)
         if not isinstance(enum, GraphQLEnumType):
             raise RuntimeError(f"Object type {name} already exists and is not an enum: {enum}")
         return enum
