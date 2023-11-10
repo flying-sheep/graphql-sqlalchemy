@@ -8,7 +8,6 @@ import pytest
 from graphql import (
     GraphQLBoolean,
     GraphQLEnumType,
-    GraphQLEnumValueMap,
     GraphQLFloat,
     GraphQLInt,
     GraphQLList,
@@ -16,9 +15,9 @@ from graphql import (
     GraphQLObjectType,
     GraphQLScalarType,
     GraphQLString,
-    is_equal_type,
 )
 from graphql_sqlalchemy.graphql_types import get_graphql_type_from_column, get_graphql_type_from_python
+from graphql_sqlalchemy.testing import assert_equal_gql_type
 from sqlalchemy import ARRAY, Boolean, Column, Float, Integer, String
 from sqlalchemy import Enum as SqlaEnum
 
@@ -55,7 +54,7 @@ def test_get_graphql_type_from_column(
 ) -> None:
     column = Column("name", sqla_type)
     converted = get_graphql_type_from_column(column.type, {})
-    assert_equal_type(converted, expected)
+    assert_equal_gql_type(converted, expected)
 
 
 @pytest.mark.parametrize(
@@ -78,21 +77,4 @@ def test_get_graphql_type_from_python(
     py_type: type[Any] | UnionType, expected: GraphQLScalarType | GraphQLObjectType | GraphQLList[Any]
 ) -> None:
     converted = get_graphql_type_from_python(py_type, {})
-    assert_equal_type(converted, expected)
-
-
-def assert_equal_type(a: Any, b: Any) -> None:
-    if is_equal_type(a, b):
-        return
-    if isinstance(a, GraphQLNonNull) and isinstance(b, GraphQLNonNull):
-        assert_equal_type(a.of_type, b.of_type)
-        return
-    assert type(a) is type(b)
-    assert isinstance(a, GraphQLEnumType)
-    assert isinstance(b, GraphQLEnumType)
-    assert a.name == b.name
-    assert mk_comparable_values(a.values) == mk_comparable_values(b.values)
-
-
-def mk_comparable_values(values: GraphQLEnumValueMap) -> Any:
-    return {k: v.value for k, v in values.items()}
+    assert_equal_gql_type(converted, expected)
