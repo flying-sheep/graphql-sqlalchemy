@@ -39,13 +39,6 @@ if TYPE_CHECKING:
     from .types import Objects
 
 
-@singledispatch
-def get_graphql_type_from_python(
-    typ: type | UnionType, objects: Objects
-) -> GraphQLOutputType | GraphQLList[GraphQLNonNull[Any]]:
-    raise NotImplementedError(f"Unsupported type: {typ} of type {type(typ)}")
-
-
 class NativeGraphQLEnumType(GraphQLEnumType):
     """A GraphQL enum type mapping to Python Enum members, not their `.value` attributes."""
 
@@ -53,6 +46,13 @@ class NativeGraphQLEnumType(GraphQLEnumType):
         if values is not None:
             raise TypeError("Specify native `enum` type, not `values`.")
         super().__init__(name, enum.__members__, *args, **kwargs)
+
+
+@singledispatch
+def get_graphql_type_from_python(
+    typ: type | UnionType, objects: Objects
+) -> GraphQLOutputType | GraphQLList[GraphQLNonNull[Any]]:
+    raise NotImplementedError(f"Unsupported type: {typ} of type {type(typ)}")
 
 
 @get_graphql_type_from_python.register(UnionType)
