@@ -65,7 +65,7 @@ class Project(Base):
         ("some_id", GraphQLInt),
         ("some_string", GraphQLString),
         ("some_bool", GraphQLBoolean),
-        ("some_enum", GraphQLEnumType(name="someenum", values={"a": 1, "b": 1})),
+        ("some_enum", GraphQLEnumType("someenum", SomeEnum.__members__)),
     ],
 )
 def test_build_schema_simple(field: str, gql_type: GraphQLScalarType) -> None:

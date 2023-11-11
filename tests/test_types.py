@@ -34,6 +34,11 @@ if TYPE_CHECKING:
     from sqlalchemy.sql.type_api import TypeEngine
 
 
+class SomeEnum(Enum):
+    a = 1
+    b = 1
+
+
 @pytest.mark.parametrize(
     ("sqla_type", "expected"),
     [
@@ -42,8 +47,8 @@ if TYPE_CHECKING:
         pytest.param(Boolean, GraphQLBoolean, id="bool"),
         pytest.param(String, GraphQLString, id="str"),
         pytest.param(
-            SqlaEnum(Enum("e", {"a": 1, "b": 2})),
-            GraphQLEnumType("e", {"a": 1, "b": 2}, names_as_values=True),
+            SqlaEnum(SomeEnum),
+            GraphQLEnumType("someenum", SomeEnum.__members__, names_as_values=True),
             id="enum",
         ),
         pytest.param(ARRAY(String), GraphQLList(GraphQLNonNull(GraphQLString)), id="arr"),
@@ -65,8 +70,8 @@ def test_get_graphql_type_from_column(
         pytest.param(bool, GraphQLNonNull(GraphQLBoolean), id="bool"),
         pytest.param(str, GraphQLNonNull(GraphQLString), id="str"),
         pytest.param(
-            Enum("E1", {"a": 1, "b": 2}),
-            GraphQLNonNull(GraphQLEnumType("e1", {"a": 1, "b": 2}, names_as_values=True)),
+            SomeEnum,
+            GraphQLNonNull(GraphQLEnumType("someenum", SomeEnum.__members__)),
             id="enum",
         ),
         pytest.param(str_or_none, GraphQLString, id="str|None"),

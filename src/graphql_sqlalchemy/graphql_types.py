@@ -46,6 +46,15 @@ def get_graphql_type_from_python(
     raise NotImplementedError(f"Unsupported type: {typ} of type {type(typ)}")
 
 
+class NativeGraphQLEnumType(GraphQLEnumType):
+    """A GraphQL enum type mapping to Python Enum members, not their `.value` attributes."""
+
+    def __init__(self, name: str, enum: type[Enum], *args: Any, values: None = None, **kwargs: Any) -> None:
+        if values is not None:
+            raise TypeError("Specify native `enum` type, not `values`.")
+        super().__init__(name, enum.__members__, *args, **kwargs)
+
+
 @get_graphql_type_from_python.register(UnionType)
 def _(
     typ: UnionType, objects: Objects
@@ -86,7 +95,7 @@ def get_graphql_type_from_python_inner(
     if issubclass(typ, Enum):
         name = typ.__name__.lower()
         if (enum := objects.get(name)) is None:
-            objects[name] = enum = GraphQLEnumType(name, typ)
+            objects[name] = enum = NativeGraphQLEnumType(name, typ)
         if not isinstance(enum, GraphQLEnumType):
             raise RuntimeError(f"Object type {name} already exists and is not an enum: {enum}")
         return enum
@@ -112,7 +121,7 @@ def get_graphql_type_from_column(
         if (enum := objects.get(name)) is None:
             if not column_type.enum_class:
                 return GraphQLString
-            objects[name] = enum = GraphQLEnumType(name, column_type.enum_class)
+            objects[name] = enum = NativeGraphQLEnumType(name, column_type.enum_class)
         if not isinstance(enum, GraphQLEnumType):
             raise RuntimeError(f"Object type {name} already exists and is not an enum: {enum}")
         return enum
