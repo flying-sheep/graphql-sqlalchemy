@@ -21,7 +21,7 @@ from .names import get_field_name
 if TYPE_CHECKING:
     from sqlalchemy.orm import DeclarativeBase
 
-    from .types import Inputs
+    from .types import Inputs, Objects
 
 ORDER_BY_ENUM = GraphQLEnumType("order_by", {"desc": "desc", "asc": "asc"})
 ON_CONFLICT_INPUT = GraphQLInputObjectType(
@@ -32,8 +32,8 @@ ON_CONFLICT_INPUT = GraphQLInputObjectType(
 )
 
 
-def get_comparison_input_type(column: Column[Any], inputs: Inputs) -> GraphQLInputObjectType:
-    graphql_type = get_graphql_type_from_column(column.type)
+def get_comparison_input_type(column: Column[Any], inputs: Inputs, objects: Objects) -> GraphQLInputObjectType:
+    graphql_type = get_graphql_type_from_column(column.type, objects)
     type_name = get_field_name(graphql_type, "comparison")
 
     if type_name in inputs:
@@ -41,14 +41,14 @@ def get_comparison_input_type(column: Column[Any], inputs: Inputs) -> GraphQLInp
 
     fields = get_base_comparison_fields(graphql_type)
 
-    if graphql_type == GraphQLString:
+    if graphql_type is GraphQLString:
         fields.update(get_string_comparison_fields())
 
     inputs[type_name] = GraphQLInputObjectType(type_name, fields)
     return inputs[type_name]
 
 
-def get_where_input_type(model: type[DeclarativeBase], inputs: Inputs) -> GraphQLInputObjectType:
+def get_where_input_type(model: type[DeclarativeBase], inputs: Inputs, objects: Objects) -> GraphQLInputObjectType:
     type_name = get_field_name(model, "where")
     if type_name in inputs:
         return inputs[type_name]
@@ -61,7 +61,7 @@ def get_where_input_type(model: type[DeclarativeBase], inputs: Inputs) -> GraphQ
         }
 
         for column in get_table(model).columns:
-            fields[column.name] = GraphQLInputField(get_comparison_input_type(column, inputs))
+            fields[column.name] = GraphQLInputField(get_comparison_input_type(column, inputs, objects))
 
         for name, relationship in get_relationships(model):
             fields[name] = GraphQLInputField(inputs[get_field_name(relationship.mapper.entity, "where")])
@@ -93,20 +93,22 @@ def get_order_input_type(model: type[DeclarativeBase], inputs: Inputs) -> GraphQ
     return inputs[type_name]
 
 
-def make_model_fields_input_type(model: type[DeclarativeBase], type_name: str) -> GraphQLInputObjectType:
+def make_model_fields_input_type(
+    model: type[DeclarativeBase], type_name: str, objects: Objects
+) -> GraphQLInputObjectType:
     fields = {}
     for column in get_table(model).columns:
-        fields[column.name] = GraphQLInputField(get_graphql_type_from_column(column.type))
+        fields[column.name] = GraphQLInputField(get_graphql_type_from_column(column.type, objects))
 
     return GraphQLInputObjectType(type_name, fields)
 
 
-def get_insert_input_type(model: type[DeclarativeBase], inputs: Inputs) -> GraphQLInputObjectType:
+def get_insert_input_type(model: type[DeclarativeBase], inputs: Inputs, objects: Objects) -> GraphQLInputObjectType:
     type_name = get_field_name(model, "insert_input")
     if type_name in inputs:
         return inputs[type_name]
 
-    inputs[type_name] = make_model_fields_input_type(model, type_name)
+    inputs[type_name] = make_model_fields_input_type(model, type_name, objects)
     return inputs[type_name]
 
 
@@ -124,7 +126,7 @@ def get_conflict_input_type(model: type[DeclarativeBase], inputs: Inputs) -> Gra
     return input_type
 
 
-def get_inc_input_type(model: type[DeclarativeBase], inputs: Inputs) -> GraphQLInputObjectType:
+def get_inc_input_type(model: type[DeclarativeBase], inputs: Inputs, objects: Objects) -> GraphQLInputObjectType:
     type_name = get_field_name(model, "inc_input")
     if type_name in inputs:
         return inputs[type_name]
@@ -132,16 +134,16 @@ def get_inc_input_type(model: type[DeclarativeBase], inputs: Inputs) -> GraphQLI
     fields = {}
     for column in get_table(model).columns:
         if isinstance(column.type, (Integer, Float)):
-            fields[column.name] = GraphQLInputField(get_graphql_type_from_column(column.type))
+            fields[column.name] = GraphQLInputField(get_graphql_type_from_column(column.type, objects))
 
     inputs[type_name] = GraphQLInputObjectType(type_name, fields)
     return inputs[type_name]
 
 
-def get_set_input_type(model: type[DeclarativeBase], inputs: Inputs) -> GraphQLInputObjectType:
+def get_set_input_type(model: type[DeclarativeBase], inputs: Inputs, objects: Objects) -> GraphQLInputObjectType:
     type_name = get_field_name(model, "set_input")
     if type_name in inputs:
         return inputs[type_name]
 
-    inputs[type_name] = make_model_fields_input_type(model, type_name)
+    inputs[type_name] = make_model_fields_input_type(model, type_name, objects)
     return inputs[type_name]

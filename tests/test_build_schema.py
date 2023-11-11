@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from enum import Enum
 from typing import Union, cast
 
 import pytest
 from graphql import (
     GraphQLBoolean,
+    GraphQLEnumType,
     GraphQLField,
     GraphQLInt,
     GraphQLList,
@@ -12,9 +14,9 @@ from graphql import (
     GraphQLObjectType,
     GraphQLScalarType,
     GraphQLString,
-    is_equal_type,
 )
 from graphql_sqlalchemy import build_schema
+from graphql_sqlalchemy.testing import assert_equal_gql_type
 from sqlalchemy import Column, ForeignKey, Table
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, registry, relationship
 
@@ -31,12 +33,18 @@ user_project_association = Table(
 )
 
 
+class SomeEnum(Enum):
+    a = 1
+    b = 1
+
+
 class User(Base):
     __tablename__ = "user"
 
     some_id: Mapped[int] = mapped_column(primary_key=True)
     some_string: Mapped[str] = mapped_column(unique=True, index=True, nullable=False)
     some_bool: Mapped[bool] = mapped_column(nullable=False)
+    some_enum: Mapped[SomeEnum] = mapped_column(nullable=False)
 
     projects: Mapped[list[Project]] = relationship(back_populates="users", secondary=user_project_association)
 
@@ -57,6 +65,7 @@ class Project(Base):
         ("some_id", GraphQLInt),
         ("some_string", GraphQLString),
         ("some_bool", GraphQLBoolean),
+        ("some_enum", GraphQLEnumType("someenum", SomeEnum.__members__)),
     ],
 )
 def test_build_schema_simple(field: str, gql_type: GraphQLScalarType) -> None:
@@ -64,7 +73,7 @@ def test_build_schema_simple(field: str, gql_type: GraphQLScalarType) -> None:
     user = cast(Union[GraphQLObjectType, None], schema.get_type("user"))
     assert user
     f: GraphQLField = user.fields[field]
-    assert is_equal_type(f.type, GraphQLNonNull(gql_type))
+    assert_equal_gql_type(f.type, GraphQLNonNull(gql_type))
 
 
 def test_build_schema_rel() -> None:

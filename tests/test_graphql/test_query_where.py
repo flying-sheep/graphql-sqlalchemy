@@ -31,7 +31,7 @@ def test_simple_filter(query_example: QueryCallable, condition: str, expected: s
 @pytest.mark.parametrize("op", [None, "and"])
 def test_multi_filter(query_example: QueryCallable, op: Literal[None, "and"]) -> None:
     c1 = "rating: { _gte: 4 }"
-    c2 = 'tags: { name: { _eq: "Politics" } }'
+    c2 = "tags: { name: { _eq: politics } }"
     conditions = f"{c1} {c2}" if op is None else f"_{op}: [{{ {c1} }}, {{ {c2} }}]"
     data = query_example(f"article(where: {{ {conditions} }}) {{ title }}")
     article_titles = {article["title"] for article in data["article"]}
@@ -111,7 +111,7 @@ def test_nested_filter_many2one(query_example: QueryCallable) -> None:
 def test_nested_filter_many2many(query_example: QueryCallable) -> None:
     data = query_example(
         """
-        article(where: { tags: { name: { _eq: "Politics" } } }) {
+        article(where: { tags: { name: { _eq: politics } } }) {
             title rating
         }
         """

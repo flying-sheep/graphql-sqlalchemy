@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 from asyncio import run
+from enum import Enum
 from textwrap import indent
 from typing import TYPE_CHECKING, Any
 
@@ -51,15 +52,20 @@ class Article(Base):
         return ("★" * self.rating) + ("☆" * (5 - self.rating))
 
 
+class TagID(Enum):
+    politics = "Politics"
+    sports = "Sports"
+
+
 class Tag(Base):
     __tablename__ = "tag"
-    name: Mapped[str] = mapped_column(primary_key=True)
+    name: Mapped[TagID] = mapped_column(primary_key=True)
     articles: Mapped[list[Article]] = relationship(back_populates="tags", secondary=article_tag_association)
 
 
 def add_example_data(db_session: Session | AsyncSession) -> None:
-    db_session.add(tag_politics := Tag(name="Politics"))
-    db_session.add(tag_sports := Tag(name="Sports"))
+    db_session.add(tag_politics := Tag(name=TagID.politics))
+    db_session.add(tag_sports := Tag(name=TagID.sports))
 
     db_session.add(felicias := Author(name="Felicitas"))
     db_session.add_all(

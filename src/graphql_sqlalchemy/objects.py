@@ -34,7 +34,7 @@ def build_object_type(model: type[DeclarativeBase], objects: Objects, inputs: In
         fields = {}
 
         for column in get_table(model).columns:
-            graphql_type: GraphQLOutputType = get_graphql_type_from_column(column.type)
+            graphql_type: GraphQLOutputType = get_graphql_type_from_column(column.type, objects)
             if not column.nullable:
                 graphql_type = GraphQLNonNull(graphql_type)
 
@@ -61,7 +61,7 @@ def build_object_type(model: type[DeclarativeBase], objects: Objects, inputs: In
 
             fields[name] = GraphQLField(
                 object_type,
-                args=make_args(related_model, inputs),
+                args=make_args(related_model, inputs, objects),
                 resolve=make_resolver(name),
             )
 
