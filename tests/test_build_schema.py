@@ -108,7 +108,7 @@ class Project(Base):
         pytest.param("some_string", GraphQLString, id="str"),
         pytest.param("some_bool", GraphQLBoolean, id="bool"),
         pytest.param("some_enum", GraphQLEnumType("someenum", SomeEnum.__members__), id="enum"),
-        pytest.param("some_custom", GraphQLList(GraphQLNonNull(GraphQLString)), id="arr"),
+        pytest.param("some_custom", GraphQLList(GraphQLNonNull(GraphQLInt)), id="list[int]"),
     ],
 )
 def test_build_schema_simple(field: str, gql_type: GraphQLScalarType) -> None:
