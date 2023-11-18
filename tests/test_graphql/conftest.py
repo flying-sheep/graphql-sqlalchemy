@@ -9,12 +9,11 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from graphql import ExecutionResult, GraphQLSchema, graphql, graphql_sync
 from graphql_sqlalchemy.schema import build_schema
+from graphql_sqlalchemy.testing import JsonArray
 from sqlalchemy import Column, Engine, ForeignKey, String, Table
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, registry, relationship
-
-from tests.test_build_schema import JsonArray
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Callable

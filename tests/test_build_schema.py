@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
 from enum import Enum
-from typing import TYPE_CHECKING, Any, TypeVar, Union, cast
+from typing import Union, cast
 
 import pytest
 from graphql import (
@@ -17,12 +16,9 @@ from graphql import (
     GraphQLString,
 )
 from graphql_sqlalchemy import build_schema
-from graphql_sqlalchemy.testing import assert_equal_gql_type
-from sqlalchemy import JSON, Column, Dialect, ForeignKey, Integer, Table, TypeDecorator
+from graphql_sqlalchemy.testing import JsonArray, assert_equal_gql_type
+from sqlalchemy import Column, ForeignKey, Integer, Table
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, registry, relationship
-
-if TYPE_CHECKING:
-    from sqlalchemy.types import TypeEngine
 
 # Tested types
 
@@ -30,38 +26,6 @@ if TYPE_CHECKING:
 class SomeEnum(Enum):
     a = 1
     b = 1
-
-
-T = TypeVar("T")
-
-
-class JsonArray(TypeDecorator[Sequence[T]]):
-    impl = JSON
-    cache_ok = True
-
-    item_type: TypeEngine[T]
-
-    def __init__(self, item_type: TypeEngine[T] | type[TypeEngine[T]], none_as_null: bool = False):
-        super().__init__(none_as_null=none_as_null)
-        self.item_type = item_type() if isinstance(item_type, type) else item_type
-
-    def process_bind_param(self, value: Sequence[T] | None, dialect: Dialect) -> Sequence[T] | None:
-        if value is None:
-            return None
-        if not isinstance(value, Sequence):
-            raise ValueError("value must be a sequence")
-        if not all(isinstance(v, self.item_type.python_type) for v in value):
-            raise ValueError(f"all values must be of type {self.item_type.python_type}")
-        return value
-
-    def process_result_value(self, value: Any | None, dialect: Dialect) -> list[T]:
-        if not isinstance(value, list):
-            raise ValueError("value must be a list")
-        return value
-
-    @property
-    def python_type(self) -> type[list[T]]:
-        return list
 
 
 # SQLAlchemy models
