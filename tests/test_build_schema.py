@@ -41,9 +41,9 @@ class JsonArray(TypeDecorator[Sequence[T]]):
 
     item_type: TypeEngine[T]
 
-    def __init__(self, item_type: TypeEngine[T], none_as_null: bool = False):
+    def __init__(self, item_type: TypeEngine[T] | type[TypeEngine[T]], none_as_null: bool = False):
         super().__init__(none_as_null=none_as_null)
-        self.item_type = item_type
+        self.item_type = item_type() if isinstance(item_type, type) else item_type
 
     def process_bind_param(self, value: Sequence[T] | None, dialect: Dialect) -> Sequence[T] | None:
         if value is None:
@@ -86,7 +86,7 @@ class User(Base):
     some_string: Mapped[str] = mapped_column(unique=True, index=True, nullable=False)
     some_bool: Mapped[bool] = mapped_column(nullable=False)
     some_enum: Mapped[SomeEnum] = mapped_column(nullable=False)
-    some_custom: Mapped[list[int]] = mapped_column(JsonArray(Integer()), nullable=False)
+    some_custom: Mapped[list[int]] = mapped_column(JsonArray(Integer), nullable=False)
 
     projects: Mapped[list[Project]] = relationship(back_populates="users", secondary=user_project_association)
 
