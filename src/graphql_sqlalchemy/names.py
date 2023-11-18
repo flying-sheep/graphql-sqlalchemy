@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import singledispatch
 from typing import TYPE_CHECKING, Any, Literal
 
-from graphql import GraphQLEnumType, GraphQLList, GraphQLScalarType
+from graphql import GraphQLEnumType, GraphQLList, GraphQLNonNull, GraphQLScalarType
 from sqlalchemy import Column
 
 from .helpers import get_table
@@ -58,8 +58,11 @@ def _(model: type[DeclarativeBase], field_name: str, column: Column[Any] | None 
 
 @get_field_name.register(GraphQLScalarType)
 @get_field_name.register(GraphQLEnumType)
+def _(model: GraphQLScalarType | GraphQLEnumType, field_name: Literal["comparison"]) -> str:
+    return FIELD_NAMES[field_name].format(model.name).lower()
+
+
 @get_field_name.register(GraphQLList)
-def _(model: GraphQLScalarType | GraphQLEnumType | GraphQLList[Any], field_name: Literal["comparison"]) -> str:
-    if isinstance(model, GraphQLList):
-        return FIELD_NAMES["arr_comparison"].format(model.of_type.name.lower())
-    return FIELD_NAMES[field_name].format(getattr(model, "name").lower())
+def _(model: GraphQLList[Any], field_name: Literal["comparison"]) -> str:
+    item_model = model.of_type.of_type if isinstance(model.of_type, GraphQLNonNull) else model.of_type
+    return FIELD_NAMES[f"arr_{field_name}"].format(item_model.name.lower())

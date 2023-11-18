@@ -4,7 +4,7 @@ import sys
 from collections.abc import Collection
 from enum import Enum
 from functools import singledispatch
-from typing import TYPE_CHECKING, Any, get_args, get_origin
+from typing import TYPE_CHECKING, Any, cast, get_args, get_origin
 
 from graphql import (
     GraphQLBoolean,
@@ -19,10 +19,10 @@ from graphql import (
     GraphQLScalarType,
     GraphQLString,
 )
-from sqlalchemy import ARRAY, Boolean, Float, Integer
+from sqlalchemy import ARRAY, Boolean, Float, Integer, TypeDecorator
 from sqlalchemy import Enum as SqlaEnum
-from sqlalchemy.dialects.postgresql import ARRAY as PGARRAY
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.types import TypeEngine
 
 from graphql_sqlalchemy.names import get_table_name
 
@@ -34,8 +34,6 @@ else:
     UnionType = type(_U[int, str])
 
 if TYPE_CHECKING:
-    from sqlalchemy.types import TypeEngine
-
     from .types import Objects
 
 
@@ -102,6 +100,18 @@ def get_graphql_type_from_python_inner(
     raise TypeError(f"Unsupported type: {typ} of type {type(typ)}")
 
 
+def _get_array_item_type(column_type: TypeEngine[Any]) -> TypeEngine[Any] | None:
+    if isinstance(column_type, ARRAY):
+        return column_type.item_type
+    if not (
+        isinstance(column_type, TypeDecorator)
+        and issubclass(column_type.python_type, (list, tuple))
+        and hasattr(column_type, "item_type")
+    ):
+        return None
+    return cast(TypeEngine[Any], column_type.item_type)
+
+
 def get_graphql_type_from_column(
     column_type: TypeEngine[Any], objects: Objects
 ) -> GraphQLScalarType | GraphQLEnumType | GraphQLList[GraphQLNonNull[Any]]:
@@ -111,8 +121,8 @@ def get_graphql_type_from_column(
         return GraphQLInt
     if isinstance(column_type, Float):
         return GraphQLFloat
-    if isinstance(column_type, (ARRAY, PGARRAY)):
-        inner_type_gql = get_graphql_type_from_column(column_type.item_type, objects)
+    if item_type := _get_array_item_type(column_type):
+        inner_type_gql = get_graphql_type_from_column(item_type, objects)
         return GraphQLList(GraphQLNonNull(inner_type_gql))
     if isinstance(column_type, SqlaEnum):
         if not column_type.name:

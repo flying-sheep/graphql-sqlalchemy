@@ -9,7 +9,8 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from graphql import ExecutionResult, GraphQLSchema, graphql, graphql_sync
 from graphql_sqlalchemy.schema import build_schema
-from sqlalchemy import Column, Engine, ForeignKey, Table
+from graphql_sqlalchemy.testing import JsonArray
+from sqlalchemy import Column, Engine, ForeignKey, String, Table
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, registry, relationship
@@ -36,6 +37,7 @@ article_tag_association = Table(
 class Author(Base):
     __tablename__ = "author"
     name: Mapped[str] = mapped_column(primary_key=True)
+    nicks: Mapped[list[str]] = mapped_column(JsonArray(String, nullable=False))
     articles: Mapped[list[Article]] = relationship(back_populates="author")
 
 
@@ -67,7 +69,7 @@ def add_example_data(db_session: Session | AsyncSession) -> None:
     db_session.add(tag_politics := Tag(name=TagID.politics))
     db_session.add(tag_sports := Tag(name=TagID.sports))
 
-    db_session.add(felicias := Author(name="Felicitas"))
+    db_session.add(felicias := Author(name="Felicitas", nicks=["Feli", "Fili"]))
     db_session.add_all(
         [
             Article(title="Felicitas good", author=felicias, rating=4),

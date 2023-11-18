@@ -16,9 +16,19 @@ from graphql import (
     GraphQLString,
 )
 from graphql_sqlalchemy import build_schema
-from graphql_sqlalchemy.testing import assert_equal_gql_type
-from sqlalchemy import Column, ForeignKey, Table
+from graphql_sqlalchemy.testing import JsonArray, assert_equal_gql_type
+from sqlalchemy import Column, ForeignKey, Integer, Table
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, registry, relationship
+
+# Tested types
+
+
+class SomeEnum(Enum):
+    a = 1
+    b = 1
+
+
+# SQLAlchemy models
 
 
 class Base(DeclarativeBase):
@@ -33,11 +43,6 @@ user_project_association = Table(
 )
 
 
-class SomeEnum(Enum):
-    a = 1
-    b = 1
-
-
 class User(Base):
     __tablename__ = "user"
 
@@ -45,6 +50,7 @@ class User(Base):
     some_string: Mapped[str] = mapped_column(unique=True, index=True, nullable=False)
     some_bool: Mapped[bool] = mapped_column(nullable=False)
     some_enum: Mapped[SomeEnum] = mapped_column(nullable=False)
+    some_custom: Mapped[list[int]] = mapped_column(JsonArray(Integer), nullable=False)
 
     projects: Mapped[list[Project]] = relationship(back_populates="users", secondary=user_project_association)
 
@@ -62,10 +68,11 @@ class Project(Base):
 @pytest.mark.parametrize(
     ("field", "gql_type"),
     [
-        ("some_id", GraphQLInt),
-        ("some_string", GraphQLString),
-        ("some_bool", GraphQLBoolean),
-        ("some_enum", GraphQLEnumType("someenum", SomeEnum.__members__)),
+        pytest.param("some_id", GraphQLInt, id="int"),
+        pytest.param("some_string", GraphQLString, id="str"),
+        pytest.param("some_bool", GraphQLBoolean, id="bool"),
+        pytest.param("some_enum", GraphQLEnumType("someenum", SomeEnum.__members__), id="enum"),
+        pytest.param("some_custom", GraphQLList(GraphQLNonNull(GraphQLInt)), id="list[int]"),
     ],
 )
 def test_build_schema_simple(field: str, gql_type: GraphQLScalarType) -> None:

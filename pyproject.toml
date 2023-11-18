@@ -104,9 +104,15 @@ select = [
     "PT",
     "ASYNC",
     "TCH",
+    "TID",
+]
+ignore = [
+    "TID252", # relative imports from parents are nice
 ]
 [tool.ruff.isort]
 required-imports = ["from __future__ import annotations"]
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"tests".msg = "Don’t import from tests, use fixtures or `.testing` module."
 
 [build-system]
 requires = ["hatchling"]
