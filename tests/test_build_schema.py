@@ -104,11 +104,11 @@ class Project(Base):
 @pytest.mark.parametrize(
     ("field", "gql_type"),
     [
-        ("some_id", GraphQLInt),
-        ("some_string", GraphQLString),
-        ("some_bool", GraphQLBoolean),
-        ("some_enum", GraphQLEnumType("someenum", SomeEnum.__members__)),
-        ("some_custom", GraphQLList(GraphQLNonNull(GraphQLString))),
+        pytest.param("some_id", GraphQLInt, id="int"),
+        pytest.param("some_string", GraphQLString, id="str"),
+        pytest.param("some_bool", GraphQLBoolean, id="bool"),
+        pytest.param("some_enum", GraphQLEnumType("someenum", SomeEnum.__members__), id="enum"),
+        pytest.param("some_custom", GraphQLList(GraphQLNonNull(GraphQLString)), id="arr"),
     ],
 )
 def test_build_schema_simple(field: str, gql_type: GraphQLScalarType) -> None:

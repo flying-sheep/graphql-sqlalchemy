@@ -16,7 +16,8 @@ def assert_equal_gql_type(a: GraphQLType, b: GraphQLType) -> None:
     if isinstance(a, GraphQLEnumType) and isinstance(b, GraphQLEnumType):
         assert a.name == b.name
         assert mk_comparable_values(a.values) == mk_comparable_values(b.values)
-    raise NotImplementedError(f"Cannot compare {a} and {b}")
+        return
+    raise NotImplementedError(f"Cannot compare {a!r} and {b!r}")
 
 
 def mk_comparable_values(values: GraphQLEnumValueMap) -> dict[str, Any]:
