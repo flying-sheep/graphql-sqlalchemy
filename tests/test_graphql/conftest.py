@@ -37,7 +37,7 @@ article_tag_association = Table(
 class Author(Base):
     __tablename__ = "author"
     name: Mapped[str] = mapped_column(primary_key=True)
-    nicks: Mapped[list[str]] = mapped_column(JsonArray(String))
+    nicks: Mapped[list[str]] = mapped_column(JsonArray(String, nullable=False))
     articles: Mapped[list[Article]] = relationship(back_populates="author")
 
 
