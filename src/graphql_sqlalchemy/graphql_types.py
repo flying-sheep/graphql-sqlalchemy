@@ -19,7 +19,7 @@ from graphql import (
     GraphQLScalarType,
     GraphQLString,
 )
-from sqlalchemy import Boolean, Float, Integer, TypeDecorator
+from sqlalchemy import ARRAY, Boolean, Float, Integer, TypeDecorator
 from sqlalchemy import Enum as SqlaEnum
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.types import TypeEngine
@@ -101,6 +101,8 @@ def get_graphql_type_from_python_inner(
 
 
 def _get_array_item_type(column_type: TypeEngine[Any]) -> TypeEngine[Any] | None:
+    if isinstance(column_type, ARRAY):
+        return column_type.item_type
     if not (
         isinstance(column_type, TypeDecorator)
         and issubclass(column_type.python_type, (list, tuple))

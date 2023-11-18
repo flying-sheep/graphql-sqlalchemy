@@ -11,8 +11,8 @@ def assert_equal_gql_type(a: Any, b: Any) -> None:
     if isinstance(a, GraphQLNonNull) and isinstance(b, GraphQLNonNull):
         assert_equal_gql_type(a.of_type, b.of_type)
         return
-    assert isinstance(a, GraphQLEnumType)
-    assert isinstance(b, GraphQLEnumType)
+    assert isinstance(a, GraphQLEnumType), a
+    assert isinstance(b, GraphQLEnumType), b
     assert a.name == b.name
     assert mk_comparable_values(a.values) == mk_comparable_values(b.values)
 
