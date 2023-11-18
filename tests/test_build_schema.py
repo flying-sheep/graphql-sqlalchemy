@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from enum import Enum
-from typing import Union, cast
+from typing import TYPE_CHECKING, Any, TypeVar, Union, cast
 
 import pytest
 from graphql import (
@@ -17,8 +18,53 @@ from graphql import (
 )
 from graphql_sqlalchemy import build_schema
 from graphql_sqlalchemy.testing import assert_equal_gql_type
-from sqlalchemy import Column, ForeignKey, Table
+from sqlalchemy import JSON, Column, Dialect, ForeignKey, Integer, Table, TypeDecorator
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, registry, relationship
+
+if TYPE_CHECKING:
+    from sqlalchemy.types import TypeEngine
+
+# Tested types
+
+
+class SomeEnum(Enum):
+    a = 1
+    b = 1
+
+
+T = TypeVar("T")
+
+
+class JsonArray(TypeDecorator[Sequence[T]]):
+    impl = JSON
+    cache_ok = True
+
+    item_type: TypeEngine[T]
+
+    def __init__(self, item_type: TypeEngine[T], none_as_null: bool = False):
+        super().__init__(none_as_null=none_as_null)
+        self.item_type = item_type
+
+    def process_bind_param(self, value: Sequence[T] | None, dialect: Dialect) -> Sequence[T] | None:
+        if value is None:
+            return None
+        if not isinstance(value, Sequence):
+            raise ValueError("value must be a sequence")
+        if not all(isinstance(v, self.item_type.python_type) for v in value):
+            raise ValueError(f"all values must be of type {self.item_type.python_type}")
+        return value
+
+    def process_result_value(self, value: Any | None, dialect: Dialect) -> list[T]:
+        if not isinstance(value, list):
+            raise ValueError("value must be a list")
+        return value
+
+    @property
+    def python_type(self) -> type[list[T]]:
+        return list
+
+
+# SQLAlchemy models
 
 
 class Base(DeclarativeBase):
@@ -33,11 +79,6 @@ user_project_association = Table(
 )
 
 
-class SomeEnum(Enum):
-    a = 1
-    b = 1
-
-
 class User(Base):
     __tablename__ = "user"
 
@@ -45,6 +86,7 @@ class User(Base):
     some_string: Mapped[str] = mapped_column(unique=True, index=True, nullable=False)
     some_bool: Mapped[bool] = mapped_column(nullable=False)
     some_enum: Mapped[SomeEnum] = mapped_column(nullable=False)
+    some_custom: Mapped[list[int]] = mapped_column(JsonArray(Integer()), nullable=False)
 
     projects: Mapped[list[Project]] = relationship(back_populates="users", secondary=user_project_association)
 
@@ -66,6 +108,7 @@ class Project(Base):
         ("some_string", GraphQLString),
         ("some_bool", GraphQLBoolean),
         ("some_enum", GraphQLEnumType("someenum", SomeEnum.__members__)),
+        ("some_custom", GraphQLList(GraphQLNonNull(GraphQLString))),
     ],
 )
 def test_build_schema_simple(field: str, gql_type: GraphQLScalarType) -> None:
