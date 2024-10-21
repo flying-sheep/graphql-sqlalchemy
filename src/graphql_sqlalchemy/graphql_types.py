@@ -139,7 +139,7 @@ def get_graphql_type_from_column(
 
 
 def get_base_comparison_fields(
-    graphql_type: GraphQLScalarType | GraphQLEnumType | GraphQLList[Any]
+    graphql_type: GraphQLScalarType | GraphQLEnumType | GraphQLList[Any],
 ) -> dict[str, GraphQLInputField]:
     return {
         "_eq": GraphQLInputField(graphql_type),
