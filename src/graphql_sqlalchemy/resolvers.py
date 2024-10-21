@@ -48,8 +48,7 @@ def all_scalars(
     selection: W,
     *,
     execution_options: OrmExecuteOptionsParameter = MappingProxyType({}),
-) -> Sequence[DeclarativeBase]:
-    ...
+) -> Sequence[DeclarativeBase]: ...
 
 
 @overload
@@ -58,8 +57,7 @@ def all_scalars(
     selection: W,
     *,
     execution_options: OrmExecuteOptionsParameter = MappingProxyType({}),
-) -> Awaitable[Sequence[DeclarativeBase]]:
-    ...
+) -> Awaitable[Sequence[DeclarativeBase]]: ...
 
 
 def all_scalars(
@@ -281,15 +279,13 @@ def make_pk_resolver(model: type[DeclarativeBase]) -> Callable[..., AwaitableOrV
 @overload
 def session_add_object(
     obj: dict[str, Any], model: type[DeclarativeBase], session: Session, *, on_conflict: dict[str, Any] | None
-) -> DeclarativeBase:
-    ...
+) -> DeclarativeBase: ...
 
 
 @overload
 def session_add_object(
     obj: dict[str, Any], model: type[DeclarativeBase], session: AsyncSession, *, on_conflict: dict[str, Any] | None
-) -> Awaitable[DeclarativeBase]:
-    ...
+) -> Awaitable[DeclarativeBase]: ...
 
 
 def session_add_object(

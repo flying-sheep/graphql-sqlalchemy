@@ -15,10 +15,11 @@ from graphql import (
     GraphQLScalarType,
     GraphQLString,
 )
-from graphql_sqlalchemy import build_schema
-from graphql_sqlalchemy.testing import JsonArray, assert_equal_gql_type
 from sqlalchemy import Column, ForeignKey, Integer, Table
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, registry, relationship
+
+from graphql_sqlalchemy import build_schema
+from graphql_sqlalchemy.testing import JsonArray, assert_equal_gql_type
 
 # Tested types
 
