@@ -15,10 +15,11 @@ from graphql import (
     GraphQLScalarType,
     GraphQLString,
 )
-from graphql_sqlalchemy import build_schema
-from graphql_sqlalchemy.testing import JsonArray, assert_equal_gql_type
 from sqlalchemy import Column, ForeignKey, Integer, Table
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, registry, relationship
+
+from graphql_sqlalchemy import build_schema
+from graphql_sqlalchemy.testing import JsonArray, assert_equal_gql_type
 
 # Tested types
 
@@ -77,7 +78,7 @@ class Project(Base):
 )
 def test_build_schema_simple(field: str, gql_type: GraphQLScalarType) -> None:
     schema = build_schema(Base)
-    user = cast(Union[GraphQLObjectType, None], schema.get_type("user"))
+    user = cast("Union[GraphQLObjectType, None]", schema.get_type("user"))
     assert user
     f: GraphQLField = user.fields[field]
     assert_equal_gql_type(f.type, GraphQLNonNull(gql_type))
@@ -85,7 +86,7 @@ def test_build_schema_simple(field: str, gql_type: GraphQLScalarType) -> None:
 
 def test_build_schema_rel() -> None:
     schema = build_schema(Base)
-    user = cast(Union[GraphQLObjectType, None], schema.get_type("user"))
+    user = cast("Union[GraphQLObjectType, None]", schema.get_type("user"))
     assert user
     f: GraphQLField = user.fields["projects"]
     assert isinstance(f.type, GraphQLNonNull)
