@@ -16,10 +16,11 @@ from graphql import (
     GraphQLScalarType,
     GraphQLString,
 )
-from graphql_sqlalchemy.graphql_types import get_graphql_type_from_column, get_graphql_type_from_python
-from graphql_sqlalchemy.testing import assert_equal_gql_type
 from sqlalchemy import ARRAY, Boolean, Column, Float, Integer, String
 from sqlalchemy import Enum as SqlaEnum
+
+from graphql_sqlalchemy.graphql_types import get_graphql_type_from_column, get_graphql_type_from_python
+from graphql_sqlalchemy.testing import assert_equal_gql_type
 
 if sys.version_info >= (3, 10):
     str_or_none = str | None
