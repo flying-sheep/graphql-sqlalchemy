@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     ],
 )
 def is_async(request: pytest.FixtureRequest) -> bool:
-    return cast(bool, request.param)
+    return cast("bool", request.param)
 
 
 @pytest.fixture(scope="session")
@@ -52,7 +52,7 @@ def db_session_factory(db_engine: Engine | AsyncEngine) -> scoped_session[Sessio
     return scoped_session(sessionmaker(bind=db_engine))
 
 
-@pytest.fixture()
+@pytest.fixture
 async def db_session(
     db_session_factory: scoped_session[Session] | async_scoped_session[AsyncSession],
 ) -> AsyncGenerator[Session | AsyncSession, None]:
