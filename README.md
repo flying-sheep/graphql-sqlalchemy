@@ -22,7 +22,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from graphql_sqlalchemy import build_schema
 
-engine = create_engine('sqlite:///config.db')
+engine = create_engine("sqlite:///config.db")
 Base = declarative_base()
 Session = sessionmaker(bind=engine)
 
