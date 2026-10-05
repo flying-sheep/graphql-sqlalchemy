@@ -109,7 +109,7 @@ def _get_array_item_type(column_type: TypeEngine[Any]) -> TypeEngine[Any] | None
         and hasattr(column_type, "item_type")
     ):
         return None
-    return cast(TypeEngine[Any], column_type.item_type)
+    return cast("TypeEngine[Any]", column_type.item_type)
 
 
 def get_graphql_type_from_column(
@@ -139,7 +139,7 @@ def get_graphql_type_from_column(
 
 
 def get_base_comparison_fields(
-    graphql_type: GraphQLScalarType | GraphQLEnumType | GraphQLList[Any]
+    graphql_type: GraphQLScalarType | GraphQLEnumType | GraphQLList[Any],
 ) -> dict[str, GraphQLInputField]:
     return {
         "_eq": GraphQLInputField(graphql_type),
