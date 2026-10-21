@@ -19,6 +19,9 @@ defaults:
 jobs:
   run_tester:
     runs-on: ${{ matrix.config.os }}
+    permissions:
+      contents: read
+      id-token: write # Codecov OIDC upload
 
     strategy:
       fail-fast: false
