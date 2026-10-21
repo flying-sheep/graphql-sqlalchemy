@@ -17,28 +17,26 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Typing :: Typed",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.12"
 dependencies = [
     "graphql-core>=3",
     "SQLAlchemy>=2",
-    "get-annotations; python_version < '3.10'",
 ]
-
-[project.optional-dependencies]
-asyncio = [
+optional-dependencies.asyncio = [
     "SQLAlchemy[asyncio]",
 ]
+
+[dependency-groups]
 test = [
     "pytest>=3.4",
     "pytest-cov>=2.9.0",
     "pytest-describe>=1.0.0",
     "pytest-asyncio",
-    "exceptiongroup; python_version < '3.11'",
     "SQLAlchemy[asyncio]",
     "aiosqlite",
 ]
@@ -53,32 +51,25 @@ graphql = "pygments_graphql:GraphqlLexer"
 
 
 [tool.hatch.envs.default]
-python = "3.11"
 dependencies = [
     "pygments", # pytest syntax highlighting
 ]
 
-[[tool.hatch.envs.test.matrix]]
-python = ["3.9", "3.10", "3.11", "3.12"]
-[tool.hatch.envs.test]
-dependencies = ["pytest-watcher"]
-features = ["test"]
-[tool.hatch.envs.test.scripts]
-run = "pytest -v {args}"
-cov = "pytest -v --cov-report=term-missing --cov-report=xml --cov=graphql_sqlalchemy {args}"
-watch = "ptw . -vv --cov-report=xml --cov=graphql_sqlalchemy {args}"
+[[tool.hatch.envs.hatch-test.matrix]]
+python = ["3.12", "3.13", "3.14"]
+[tool.hatch.envs.hatch-test]
+dependency-groups = ["test"]
 
 [tool.hatch.envs.docs]
-features = ["docs"]
+dependency-groups = ["docs"]
 [tool.hatch.envs.docs.scripts]
 build = "sphinx-build -M html docs/source docs/build"
 
-[tool.pytest.ini_options]
-xfail_strict = true
+[tool.pytest]
+strict = true
 asyncio_mode = "auto"
 addopts = [
     '--import-mode=importlib',
-    '--strict-markers',
 ]
 filterwarnings = [
     'error',
@@ -86,7 +77,6 @@ filterwarnings = [
 ]
 
 [tool.mypy]
-python_version = "3.11"
 mypy_path = ["src", "tests"]
 strict = true
 explicit_package_bases = true # pytest doesn’t do __init__.py
@@ -95,7 +85,7 @@ disallow_untyped_decorators = false # e.g. pytest.mark.parametrize
 
 [tool.ruff]
 line-length = 120
-select = [
+lint.select = [
     "E",
     "W",
     "F",
@@ -103,10 +93,10 @@ select = [
     "UP",
     "PT",
     "ASYNC",
-    "TCH",
+    "TC",
     "TID",
 ]
-ignore = [
+lint.ignore = [
     "TID252", # relative imports from parents are nice
 ]
 [tool.ruff.isort]

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 from asyncio import run
 from enum import Enum
 from textwrap import indent
@@ -8,18 +7,16 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 from graphql import ExecutionResult, GraphQLSchema, graphql, graphql_sync
-from graphql_sqlalchemy.schema import build_schema
-from graphql_sqlalchemy.testing import JsonArray
 from sqlalchemy import Column, Engine, ForeignKey, String, Table
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, registry, relationship
 
+from graphql_sqlalchemy.schema import build_schema
+from graphql_sqlalchemy.testing import JsonArray
+
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Callable
-
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
 
 
 class Base(DeclarativeBase):
@@ -96,7 +93,7 @@ def gql_schema() -> GraphQLSchema:
     return build_schema(Base)
 
 
-@pytest.fixture()
+@pytest.fixture
 async def example_session(
     db_engine: Engine | AsyncEngine, db_session: Session | AsyncSession
 ) -> AsyncGenerator[Session | AsyncSession, None]:
@@ -129,7 +126,7 @@ def raise_if_errors(result: ExecutionResult) -> None:
         raise result.errors[0] if len(result.errors) == 1 else ExceptionGroup("Invalid Query", result.errors)
 
 
-@pytest.fixture()
+@pytest.fixture
 def graphql_example(
     example_session: Session | AsyncSession, gql_schema: GraphQLSchema
 ) -> Callable[[str], dict[str, Any]]:
@@ -155,7 +152,7 @@ def graphql_example(
     return graphql_
 
 
-@pytest.fixture()
+@pytest.fixture
 def query_example(graphql_example: Callable[[str], dict[str, Any]]) -> Callable[[str], dict[str, Any]]:
     def query(source: str) -> dict[str, Any]:
         return graphql_example(f"query {{\n{indent(source, '    ')}\n}}")
@@ -163,7 +160,7 @@ def query_example(graphql_example: Callable[[str], dict[str, Any]]) -> Callable[
     return query
 
 
-@pytest.fixture()
+@pytest.fixture
 def mutation_example(graphql_example: Callable[[str], dict[str, Any]]) -> Callable[[str], dict[str, Any]]:
     def mutation(source: str) -> dict[str, Any]:
         return graphql_example(f"mutation {{\n{indent(source, '    ')}\n}}")

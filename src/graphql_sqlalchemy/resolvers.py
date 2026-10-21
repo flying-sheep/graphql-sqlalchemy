@@ -1,13 +1,24 @@
 from __future__ import annotations
 
 from asyncio import gather
-from collections.abc import Sequence
 from functools import partial
 from itertools import starmap
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Callable, TypedDict, TypeVar, cast, overload
+from typing import TYPE_CHECKING, Any, TypedDict, TypeVar, cast, overload
 
-from sqlalchemy import ColumnExpressionArgument, ScalarResult, Select, and_, delete, not_, or_, select, true, update
+from sqlalchemy import (
+    ColumnExpressionArgument,
+    Executable,
+    ScalarResult,
+    Select,
+    and_,
+    delete,
+    not_,
+    or_,
+    select,
+    true,
+    update,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import DeclarativeBase, InstrumentedAttribute, Session, interfaces
 from sqlalchemy.sql.dml import ReturningDelete, ReturningUpdate
@@ -15,7 +26,7 @@ from sqlalchemy.sql.dml import ReturningDelete, ReturningUpdate
 from .helpers import get_mapper
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Generator, Mapping
+    from collections.abc import Awaitable, Callable, Generator, Mapping, Sequence
 
     from graphql.pyutils import AwaitableOrValue
     from sqlalchemy.orm._typing import OrmExecuteOptionsParameter
@@ -31,40 +42,30 @@ class InsDel(TypedDict):
 T = TypeVar("T")
 
 
-W = TypeVar(
-    "W",
-    Select[tuple[DeclarativeBase]],
-    ReturningUpdate[tuple[DeclarativeBase]],
-    ReturningDelete[tuple[DeclarativeBase]],
-)
-
-
 # Async helpers
 
 
 @overload
 def all_scalars(
     session: Session,
-    selection: W,
+    selection: Executable,
     *,
     execution_options: OrmExecuteOptionsParameter = MappingProxyType({}),
-) -> Sequence[DeclarativeBase]:
-    ...
+) -> Sequence[DeclarativeBase]: ...
 
 
 @overload
 def all_scalars(
     session: AsyncSession,
-    selection: W,
+    selection: Executable,
     *,
     execution_options: OrmExecuteOptionsParameter = MappingProxyType({}),
-) -> Awaitable[Sequence[DeclarativeBase]]:
-    ...
+) -> Awaitable[Sequence[DeclarativeBase]]: ...
 
 
 def all_scalars(
     session: Session | AsyncSession,
-    selection: W,
+    selection: Executable,
     *,
     execution_options: OrmExecuteOptionsParameter = MappingProxyType({}),
 ) -> AwaitableOrValue[Sequence[DeclarativeBase]]:
@@ -156,7 +157,13 @@ def get_filter_operation(model: type[DeclarativeBase], where: Mapping[str, Any])
     return and_(*starmap(partial_bool, exprs.items()))
 
 
-def filter_selection(
+def filter_selection[
+    W: (
+        Select[DeclarativeBase],
+        ReturningUpdate[DeclarativeBase],
+        ReturningDelete[DeclarativeBase],
+    )
+](
     model: type[DeclarativeBase],
     selection: W,
     *,
@@ -167,9 +174,9 @@ def filter_selection(
 
 def order_selection(
     model: type[DeclarativeBase] | InstrumentedAttribute[Any],
-    selection: Select[tuple[DeclarativeBase]] | None = None,
+    selection: Select[DeclarativeBase] | None = None,
     order: list[dict[str, Any]] | None = None,
-) -> Select[tuple[DeclarativeBase]]:
+) -> Select[DeclarativeBase]:
     if selection is None:
         selection = select(model)
     if not order:
@@ -186,13 +193,13 @@ def order_selection(
 
 def resolve_filtered(
     model: type[DeclarativeBase],
-    selection: Select[tuple[DeclarativeBase]] | None = None,
+    selection: Select[DeclarativeBase] | None = None,
     *,
     where: Mapping[str, Any] = MappingProxyType({}),
     order: list[dict[str, Any]] | None = None,
     limit: int | None = None,
     offset: int | None = None,
-) -> Select[tuple[DeclarativeBase]]:
+) -> Select[DeclarativeBase]:
     if selection is None:
         selection = select(model)
     selection = filter_selection(model, selection, where=where)
@@ -242,10 +249,10 @@ def make_many_resolver(
         offset: int | None = None,
     ) -> AwaitableOrValue[Sequence[DeclarativeBase]]:
         if all(f is None for f in [where, order, limit, offset]):
-            return cast(Sequence[Any], getattr(root, field_name))
+            return cast("Sequence[Any]", getattr(root, field_name))
         session = info.context["session"]
         relationship: InstrumentedAttribute[Any] = getattr(root.__class__, field_name)
-        field_model = relationship.prop.entity.class_
+        field_model = get_mapper(root.__class__).relationships[field_name].entity.class_
         selection = select(field_model).select_from(root.__class__).join(relationship).filter(*pk_filter(root))
         selection = resolve_filtered(field_model, selection, where=where or {}, order=order, limit=limit, offset=offset)
         return all_scalars(session, selection)
@@ -281,15 +288,13 @@ def make_pk_resolver(model: type[DeclarativeBase]) -> Callable[..., AwaitableOrV
 @overload
 def session_add_object(
     obj: dict[str, Any], model: type[DeclarativeBase], session: Session, *, on_conflict: dict[str, Any] | None
-) -> DeclarativeBase:
-    ...
+) -> DeclarativeBase: ...
 
 
 @overload
 def session_add_object(
     obj: dict[str, Any], model: type[DeclarativeBase], session: AsyncSession, *, on_conflict: dict[str, Any] | None
-) -> Awaitable[DeclarativeBase]:
-    ...
+) -> Awaitable[DeclarativeBase]: ...
 
 
 def session_add_object(
@@ -438,11 +443,11 @@ def make_delete_by_pk_resolver(model: type[DeclarativeBase]) -> Callable[..., Aw
 
 def update_selection(
     model: type[DeclarativeBase],
-    selection: ReturningUpdate[tuple[DeclarativeBase]],
+    selection: ReturningUpdate[DeclarativeBase],
     *,
     _set: dict[str, Any] | None,
     _inc: dict[str, Any] | None,
-) -> ReturningUpdate[tuple[DeclarativeBase]]:
+) -> ReturningUpdate[DeclarativeBase]:
     if _inc:
         to_increment = {}
         for column_name, increment in _inc.items():

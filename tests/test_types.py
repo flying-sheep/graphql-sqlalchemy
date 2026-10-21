@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
@@ -16,17 +15,11 @@ from graphql import (
     GraphQLScalarType,
     GraphQLString,
 )
-from graphql_sqlalchemy.graphql_types import get_graphql_type_from_column, get_graphql_type_from_python
-from graphql_sqlalchemy.testing import assert_equal_gql_type
 from sqlalchemy import ARRAY, Boolean, Column, Float, Integer, String
 from sqlalchemy import Enum as SqlaEnum
 
-if sys.version_info >= (3, 10):
-    str_or_none = str | None
-else:
-    from typing import Union as _U
-
-    str_or_none = _U[str, None]
+from graphql_sqlalchemy.graphql_types import get_graphql_type_from_column, get_graphql_type_from_python
+from graphql_sqlalchemy.testing import assert_equal_gql_type
 
 if TYPE_CHECKING:
     from types import UnionType
@@ -74,7 +67,7 @@ def test_get_graphql_type_from_column(
             GraphQLNonNull(GraphQLEnumType("someenum", SomeEnum.__members__)),
             id="enum",
         ),
-        pytest.param(str_or_none, GraphQLString, id="str|None"),
+        pytest.param(str | None, GraphQLString, id="str|None"),
         pytest.param(list[str], GraphQLNonNull(GraphQLList(GraphQLNonNull(GraphQLString))), id="arr"),
     ],
 )

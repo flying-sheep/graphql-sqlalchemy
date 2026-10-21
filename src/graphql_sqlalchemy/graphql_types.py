@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import sys
 from collections.abc import Collection
 from enum import Enum
 from functools import singledispatch
+from types import UnionType
 from typing import TYPE_CHECKING, Any, cast, get_args, get_origin
 
 from graphql import (
@@ -22,18 +22,12 @@ from graphql import (
 from sqlalchemy import ARRAY, Boolean, Float, Integer, TypeDecorator
 from sqlalchemy import Enum as SqlaEnum
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy.types import TypeEngine
 
 from graphql_sqlalchemy.names import get_table_name
 
-if sys.version_info >= (3, 10):
-    from types import UnionType
-else:
-    from typing import Union as _U
-
-    UnionType = type(_U[int, str])
-
 if TYPE_CHECKING:
+    from sqlalchemy.types import TypeEngine
+
     from .types import Objects
 
 
@@ -75,6 +69,12 @@ def _(
 def get_graphql_type_from_python_inner(
     typ: type[str | int | float | bool | DeclarativeBase], objects: Objects
 ) -> GraphQLScalarType | GraphQLObjectType | GraphQLEnumType | GraphQLList[GraphQLNonNull[Any]]:
+    # before `issubclass` checks, which raise for generic aliases since Python 3.13
+    if isinstance((origin := get_origin(typ)), type) and issubclass(origin, Collection):
+        [typ_inner] = get_args(typ)
+        inner_type_gql = get_graphql_type_from_python(typ_inner, objects)
+        assert isinstance(inner_type_gql, GraphQLNonNull)
+        return GraphQLList(inner_type_gql)
     if issubclass(typ, bool):
         return GraphQLBoolean
     if issubclass(typ, int):
@@ -85,11 +85,6 @@ def get_graphql_type_from_python_inner(
         return GraphQLString
     if issubclass(typ, DeclarativeBase):
         return objects[get_table_name(typ)]
-    if isinstance((origin := get_origin(typ)), type) and issubclass(origin, Collection):
-        [typ_inner] = get_args(typ)
-        inner_type_gql = get_graphql_type_from_python(typ_inner, objects)
-        assert isinstance(inner_type_gql, GraphQLNonNull)
-        return GraphQLList(inner_type_gql)
     if issubclass(typ, Enum):
         name = typ.__name__.lower()
         if (enum := objects.get(name)) is None:
@@ -109,7 +104,7 @@ def _get_array_item_type(column_type: TypeEngine[Any]) -> TypeEngine[Any] | None
         and hasattr(column_type, "item_type")
     ):
         return None
-    return cast(TypeEngine[Any], column_type.item_type)
+    return cast("TypeEngine[Any]", column_type.item_type)
 
 
 def get_graphql_type_from_column(
@@ -139,7 +134,7 @@ def get_graphql_type_from_column(
 
 
 def get_base_comparison_fields(
-    graphql_type: GraphQLScalarType | GraphQLEnumType | GraphQLList[Any]
+    graphql_type: GraphQLScalarType | GraphQLEnumType | GraphQLList[Any],
 ) -> dict[str, GraphQLInputField]:
     return {
         "_eq": GraphQLInputField(graphql_type),

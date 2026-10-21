@@ -16,5 +16,4 @@ class Context(TypedDict):
     session: Session | AsyncSession
 
 
-class ResolveInfo(GraphQLResolveInfo):
-    context: Context
+type ResolveInfo = GraphQLResolveInfo[Context]
